@@ -7,10 +7,92 @@ banned = {}
 staff = {}
 
 roundvars = {}
+timers = {}
 maplist = {}
 mapsets = {}
 grounds = {}
-roomsets = {debug=true}
+cnails = {}
+
+roomsets = {debug=true,rev_delay=1000}
+
+gamemodes = {
+	normal = {
+		event = {
+			Loop = function(time, remaining)
+			end,
+			PlayerDied = function(pn)
+				table.insert(timers,{os.time(),roomsets.rev_delay,'rev',pn})
+			end,
+			PlayerWon = function(pn)
+				table.insert(timers,{os.time(),roomsets.rev_delay,'rev',pn})
+			end,
+		}
+	},
+	parkour = {
+		event = {
+			Loop = function(time, remaining)
+				for name,attr in pairs(tfm.get.room.playerList) do
+					if not gameplay.completed[name] then
+						next_stage = (gameplay.stage[name] or 0) + 1
+						if cnails[next_stage] and pythag(attr.x,attr.y,cnails[next_stage][1],cnails[next_stage][2],8) then
+							gameplay.stage[name] = next_stage
+							tfm.exec.setPlayerScore(name, 1, true)
+							if cnails[next_stage+1] then
+								pos = cnails[next_stage+1]
+							elseif next_stage+1 > #cnails then
+								pos = table.copy(gameplay.armchair)
+								pos[2] = pos[2] - 40
+							end
+							if pos then
+								ui.addTextArea(enum.txarea.pk_stage,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>s</font></b>", nil, pos[1], pos[2], 0, 0, 0xffffff, 0x000000, 0, false)
+							end
+							MSG("You reached level "..next_stage, name)
+						elseif next_stage > #cnails then
+							pos = table.copy(gameplay.armchair)
+							pos[2] = pos[2] - 40
+							if pythag(attr.x,attr.y,pos[1],pos[2],8) then
+								gameplay.stage[name] = next_stage
+								tfm.exec.giveCheese(name)
+								tfm.exec.playerVictory(name)
+							end
+						end
+					end
+				end
+			end,
+			NewGame = function()
+				gameplay.stage = {}
+				for name,attr in pairs(tfm.get.room.playerList) do
+					tfm.exec.setPlayerScore(name, 0)
+				end
+				if cnails[1] then
+					ui.addTextArea(enum.txarea.pk_stage,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>s</font></b>", nil, cnails[1][1], cnails[1][2], 0, 0, 0xffffff, 0x000000, 0, false)
+				end
+			end,
+			PlayerDied = function(pn)
+				tfm.exec.respawnPlayer(pn)
+				stage = gameplay.stage[pn] or 0
+				if stage > 0 and cnails[stage] then
+					pos = cnails[stage]
+				elseif stage > #cnails then
+					pos = table.copy(gameplay.armchair)
+					pos[2] = pos[2] - 40
+				end
+				if pos then
+					tfm.exec.movePlayer(pn, pos[1], pos[2])
+				end
+			end,
+			PlayerWon = function(pn, elapsed)
+				gameplay.completed[pn] = true
+				gameplay.event.PlayerDied(pn)
+				MSG(pn.." completed the map in "..(elapsed/100).." seconds.")
+			end,
+		},
+		stage = {},
+		completed = {},
+		armchair = nil
+	}
+}
+gameplay = gamemodes.normal
 
 groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
 
@@ -23,6 +105,7 @@ enum = {
 	txarea = {
 		help = 1,
 		helptab = 2,
+		pk_stage = 1000,
 	}
 }
 
@@ -30,6 +113,9 @@ enum = {
 
 settings = {
 	commands = {
+		m =			function(pn)
+						tfm.exec.killPlayer(pn)
+					end,
 		mapnp =		function(pn, m, w1, w2, w3)
 						if w2=='history' then
 							players[pn].book = maplist
@@ -45,8 +131,15 @@ settings = {
 							return true
 						end
 					end,
+		parkour =	function(pn, m, w1, w2)
+						if w2 then
+							roundvars.maptype = 'parkour'
+							tfm.exec.newGame(w2, w3=='mirror')
+						--else tfm.exec.newGame(settings.maps.leisure[math.random(1,#settings.maps.leisure)]) roundvars.maptype = 'leisure'
+						end
+					end,
 		rst =		function(pn, m, w1, w2)
-						tfm.exec.newGame(roundvars.thismap, w2=='mirror' and true or false)
+						tfm.exec.newGame(roundvars.thismap, w2=='mirror')
 					end,
 	},
 	buttons = {
@@ -130,13 +223,28 @@ settings = {
 function ReadXML()
 	if roundvars.notvanilla then
 		xml = tfm.get.room.xmlMapInfo.xml
-		local b,frg,sT = {false}, 0, mapsets
-		for attr, val in xml:match('<P .->'):gmatch('(%S+)="(%S*)"') do
-			local a = string.upper(attr)
-			if a == 'G' then
-				sT.Gravity = string.split(val or "")
-				sT.Wind, sT.Gravity = sT.Gravity[1], sT.Gravity[2]
-			elseif a == 'L' then sT.Length = tonumber(val)
+		local frg,sT = 0, mapsets
+		local first = true
+		for p in xml:gmatch('<P .->') do
+			if first then
+				for attr, val in p:gmatch('(%S+)="(%S*)"') do
+					local a = string.upper(attr)
+					if a == 'G' then
+						sT.Gravity = string.split(val or "")
+						sT.Wind, sT.Gravity = sT.Gravity[1], sT.Gravity[2]
+					elseif a == 'L' then sT.Length = tonumber(val)
+					end
+				end
+				first = false
+			else
+				local array = {}
+				for attr, val in p:gmatch('(%S+)="(%S*)"') do
+					array[string.upper(attr)] = val or ""
+				end
+				if tonumber(array.T)==19 and array.C=='329cd2' then  -- armchair to denote final parkour cp
+					gamemodes.parkour.armchair = {array.X,array.Y}
+					break -- nothing else to check for at the moment
+				end
 			end
 		end
 		sT.Mirrored = tfm.get.room.mirroredMap and true or false
@@ -145,7 +253,10 @@ function ReadXML()
 				local array = {}
 				for attr, val in attributes:gmatch('(%S+)="(%S*)"') do
 					array[string.upper(attr)] = val or ""
-    	        end
+				end
+				if tonumber(array.C)==22 then
+					cnails[#cnails + 1] = {array.X,array.Y}
+				end
 			end
 		end
 		if xml:find('<S>(.-)</S>') then
@@ -304,9 +415,9 @@ end
 
 ----- EVENTS
 
-function eventChatCommand( pn , msg )
+function eventChatCommand(pn, msg)
 	local m,words = string.lower(msg), {}
-	local mapped = {admin='adminban', ban='adminban', unadmin='adminban', unban='adminban', map='mapnp', np='mapnp', admins='ablist', banned='ablist', m='kill'}
+	local mapped = {admin='adminban', ban='adminban', unadmin='adminban', unban='adminban', map='mapnp', np='mapnp', admins='ablist', banned='ablist'}
 	local showcommand,showcommandadmins = {tp=true,map=true,np=true,rst=true,time=true,kill=true},{admin=true,unadmin=true,ban=true,unban=true,admins=true}
 	local general = {help=true,banned=true,admins=true,afk=true,m=true,mapinfo=true,search=true}
 	for word in m:gmatch("[^ ]+") do
@@ -337,6 +448,20 @@ function eventKeyboard(pn, k, d, x, y)
 	end
 end
 
+function eventLoop(time, remaining)
+	for i,v in ipairs(timers) do 
+		if os.time()>(v[1]+v[2]) then
+			if v[3]=='rev' then 
+				tfm.exec.respawnPlayer(v[4])
+			end			
+			table.remove(timers,i) break 
+		end
+	end
+	if gameplay.event['Loop'] then
+		gameplay.event.Loop(pn)
+	end
+end
+
 function eventMouse(pn, x, y)
 	if not players[pn] then return end
 	if roomsets.debug and players[pn].tptarget and admins[pn] then
@@ -362,8 +487,8 @@ function eventMouse(pn, x, y)
 end
 
 function eventNewGame()
-	grounds = {list={}}
-	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,mousespawns={}}, {}
+	grounds,cnails = {list={}}, {}
+	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,mousespawns={}}, {maptype=roundvars.maptype}
 	roundvars.thismap = tonumber(tfm.get.room.currentMap:match('%d+'))
 	if roundvars.thismap>800 then roundvars.notvanilla = true	end
 	if not roundvars.notvanilla then tfm.get.room.xmlMapInfo = nil end
@@ -376,6 +501,10 @@ function eventNewGame()
 	end
 	maplist[#maplist+1] = {string.format("\t%s<a href='event:load!%s'>code: %s</a></font>", gui_btn, roundvars.thismap, roundvars.thismap), string.format("\t%s",tfm.get.room.xmlMapInfo and tfm.get.room.xmlMapInfo.author or 'unknown'), string.format("\tperm: %s", tfm.get.room.xmlMapInfo and tfm.get.room.xmlMapInfo.permCode or 'unknown')}
 	ReadXML()
+	gameplay = gamemodes[roundvars.maptype] or gamemodes.normal
+	if gameplay.event['NewGame'] then
+		gameplay.event.NewGame()
+	end
 end
 
 function eventNewPlayer( pn )
@@ -406,6 +535,23 @@ function eventNewPlayer( pn )
 	--ShowLog(pn)
 	MSG(pn.. " has entered the room.", nil, "J")
 	if p.isDead then tfm.exec.respawnPlayer(pn) end
+end
+
+function eventPlayerDied(pn)
+	if gameplay.event['PlayerDied'] then
+		gameplay.event.PlayerDied(pn)
+	end
+end
+
+function eventPlayerLeft(pn)
+	afk[pn] = nil
+	MSG(pn.. " has left the room.", nil, "J")
+end
+
+function eventPlayerWon(pn, elapsed)
+	if gameplay.event['PlayerWon'] then
+		gameplay.event.PlayerWon(pn, elapsed)
+	end
 end
 
 function eventTextAreaCallback(id, pn, callback)
@@ -461,6 +607,26 @@ end
 
 function string.trim(str)
 	return string.gsub(str, '^%s*(.-)%s*$', '%1')
+end
+
+function TableSplit( tb )
+	local newT1, newT2 = {}, {}
+	for i,v in pairs(tb) do
+		if i%2~=0 then table.insert(newT1,v) else table.insert(newT2,v) end
+	end
+	return newT1, newT2
+end
+
+function table.copy(t)
+	local t2 = {}
+	for k,v in pairs(t) do
+		if type(v) == 'table' then
+			t2[k] = table.copy(v)
+		else
+			t2[k] = v
+		end
+	end
+	return t2
 end
 
 function table.slice(tbl, first, last, step)

@@ -309,7 +309,7 @@ settings = {
 		page =		function(pn, page)
 						page = tonumber(page)
 						local book = players[pn].book
-						local bookheaders = {['Map History']={"\tMapcode","\tAuthor","\tPerm"}}
+						local bookheaders = {['Map History']={"\tMapcode","\tAuthor","\tPerm"},['Ground List']={"\tZ-index","\tInfo","\tType","\tX","\tY"}}
 						local str = book.title=="Ground List" and "<textformat tabstops='[15,70,120,275,360]'>" or "<textformat tabstops='[10,150,350,400]'>"
 						str = str..#book.." entries\n\n"
 						if bookheaders[book.title] then

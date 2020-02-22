@@ -350,6 +350,8 @@ settings = {
 								if target=='cheats' then
 									if roomsets['cheats'][1] then
 										ShowCheats(nil)
+									else
+										RemoveCpMark(nil)
 									end
 								elseif target=='checkpoint' then
 									if not roomsets['checkpoint'][1] then

@@ -350,11 +350,11 @@ settings = {
 								if target=='cheats' then
 									if roomsets['cheats'][1] then
 										ShowCheats(nil)
-									else
+									elseif roundvars.maptype=='normal' then
 										RemoveCpMark(nil)
 									end
 								elseif target=='checkpoint' then
-									if not roomsets['checkpoint'][1] then
+									if not roomsets['checkpoint'][1] and roundvars.maptype=='normal' then
 										RemoveCpMark(nil)
 									end
 								end
@@ -727,6 +727,7 @@ function init()
 	end
 	system.disableChatCommandDisplay(nil,true)
 	for name in pairs(tfm.get.room.playerList) do eventNewPlayer(name) end
+	roundvars.maptype = 'normal'
 	tfm.exec.newGame('#17')
 end
 

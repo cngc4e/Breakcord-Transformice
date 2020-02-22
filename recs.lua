@@ -358,7 +358,7 @@ settings = {
 										RemoveCpMark(nil)
 									end
 								end
-								MSG(string.format("%s has %s %s", pn, roomsets[target][1] and 'enabled' or 'disabled', roomsets[target][2]))
+								MSG(string.format("%s has %s %s", pn, roomsets[target][1] and 'enabled' or 'disabled', roomsets[target][2]:lower()))
 							elseif action=='Reset' then
 								for _,v in ipairs({"rev_delay"}) do
 									roomsets[v][1] = true

@@ -12,8 +12,33 @@ maplist = {}
 mapsets = {}
 grounds = {}
 cnails = {}
+cp_coords = {}
 
-roomsets = {debug=true,rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
+roomsets = {debug=false,cheats={true, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
+
+groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
+
+gui_btn = "<VI>"
+gui_bg = 1 --background
+gui_b = 0 --border
+gui_o = .8
+
+enum = {
+	txarea = {
+		help = 1,
+		helptab = 2,
+		book = 3,
+		leaderboard = 4,
+		leaderboardtab = 5,
+		ps = 6,
+		rs = 7,
+		cheats = 8,
+		start_timeshow = 100,
+		end_timeshow = 108,
+		cp = 200,
+		log = 1000,
+	}
+}
 
 gamemodes = {
 	normal = {
@@ -24,9 +49,16 @@ gamemodes = {
 			PlayerDied = function(pn)
 				if not banned[pn] then
 					if roomsets.rev_delay[1] then
-						table.insert(timers,{os.time(),roomsets.rev_interval[1],'rev',pn})
+						local pos = nil
+						if roomsets.checkpoint[1] and cp_coords[pn] then
+							pos = {cp_coords[pn][1], cp_coords[pn][2]}
+						end
+						table.insert(timers,{os.time(),roomsets.rev_interval[1],'rev',pn, pos})
 					else
 						tfm.exec.respawnPlayer(pn)
+						if roomsets.checkpoint[1] and cp_coords[pn] then
+							tfm.exec.movePlayer(pn, cp_coords[pn][1], cp_coords[pn][2])
+						end
 					end
 				end
 			end,
@@ -61,6 +93,18 @@ gamemodes = {
 					end
 				end
 			end,
+		},
+		keys = {
+			[69] =	function(pn) -- e (checkpoint)
+						if roomsets.cheats[1] and roomsets.checkpoint[1] then
+							if not players[pn].keys['shift'] then
+								local p = tfm.get.room.playerList[pn]
+								SetCpMark(pn, p.x, p.y)
+							else
+								RemoveCpMark(pn)
+							end
+						end
+					end,
 		}
 	},
 	parkour = {
@@ -80,7 +124,7 @@ gamemodes = {
 								pos[2] = pos[2] - 40
 							end
 							if pos then
-								gameplay.AddCpMark(name, pos[1], pos[2])
+								SetCpMark(name, pos[1], pos[2])
 							end
 							MSG("You reached level "..next_stage+1, name)
 						elseif next_stage > #cnails then
@@ -93,11 +137,6 @@ gamemodes = {
 							end
 						end
 					end
-					if players[name].playersets['cp_particles'] and gameplay.cp_coords[name] then
-						local x, y = gameplay.cp_coords[name][1], gameplay.cp_coords[name][2]
-						tfm.exec.displayParticle(tfm.enum.particle.redConfetti, x, y-3, 0, 0, 0, 0, name)
-						tfm.exec.displayParticle(tfm.enum.particle.blueConfetti, x, y+3, 0, 0, 0, 0, name)
-					end
 				end
 			end,
 			NewGame = function()
@@ -106,21 +145,20 @@ gamemodes = {
 					return
 				end
 				gameplay.stage = {}
+				gameplay.timestart = {}
 				gameplay.completed = {}
+				local ostime = os.time()
 				for name,attr in pairs(tfm.get.room.playerList) do
 					tfm.exec.setPlayerScore(name, 1)
+					gameplay.timestart[name] = ostime
 				end
-				if cnails[1] then
-					gameplay.AddCpMark(nil, cnails[1][1], cnails[1][2])
-				end
+				SetCpMark(nil, cnails[1][1], cnails[1][2])
 				tfm.exec.setGameTime(900)
 			end,
 			NewPlayer = function(pn)
 				tfm.exec.respawnPlayer(pn)
 				tfm.exec.setPlayerScore(pn, 1)
-				if cnails[1] then
-					gameplay.AddCpMark(pn, cnails[1][1], cnails[1][2])
-				end
+				SetCpMark(pn, cnails[1][1], cnails[1][2])
 			end,
 			PlayerDied = function(pn)
 				if banned[pn] then return end
@@ -138,55 +176,25 @@ gamemodes = {
 			end,
 			PlayerWon = function(pn, elapsed)
 				gameplay.completed[pn] = true
-				ui.removeTextArea(enum.txarea.pk_stage, pn)
-				gameplay.cp_coords[pn] = nil
+				RemoveCpMark(pn)
+				tfm.exec.setPlayerScore(pn, 1, true)
 				gameplay.event.PlayerDied(pn)
-				MSG(pn.." completed the map in "..(elapsed/100).." seconds.")
+				local t = math.round((os.time() - gameplay.timestart[pn])/1000, 2)
+				table.insert(roundvars.completes, {pn, t})
+				MSG(pn.." completed the map in "..t.." seconds.")
 			end,
 		},
+		keys = {},
 		IsValidParkour = function()
 			return gameplay.armchair ~= nil and #cnails > 0
 		end,
-		AddCpMark = function(pn, x, y)
-			if pn == nil then
-				for name,attr in pairs(tfm.get.room.playerList) do
-					gameplay.AddCpMark(name, x, y)
-				end
-			else
-				gameplay.cp_coords[pn] = {x, y}
-				ui.addTextArea(enum.txarea.pk_stage,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>s</font></b>", pn, x, y, 0, 0, 0xffffff, 0x000000, 0, false)
-			end
-		end,
 		stage = {},
+		timestart = {},
 		completed = {},
 		armchair = nil,
-		cp_coords = {},
 	}
 }
 gameplay = gamemodes.normal
-
-groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
-
-gui_btn = "<VI>"
-gui_bg = 1 --background
-gui_b = 0 --border
-gui_o = .8
-
-enum = {
-	txarea = {
-		help = 1,
-		helptab = 2,
-		book = 3,
-		leaderboard = 4,
-		leaderboardtab = 5,
-		ps = 6,
-		rs = 7,
-		start_timeshow = 100,
-		end_timeshow = 108,
-		log = 200,
-		pk_stage = 1000,
-	}
-}
 
 ----- INTERFACES / HANDLERS
 
@@ -269,6 +277,9 @@ settings = {
 						end
 						ui.removeTextArea(enum.txarea[window], pn)
 					end,
+		groundinfo =function(pn, id)
+						ShowGroundInfo(pn, id)
+					end,
 		leaderboard=function(pn, tabid)
 						tabid = tonumber(tabid)
 						if tabid==3 then
@@ -325,6 +336,7 @@ settings = {
 					end,
 		playersets =function(pn, action, set)						
 						players[pn].playersets[set] = not players[pn].playersets[set]
+						if set=='cp_particles' then SetCpMark(pn) end
 						ShowPlayerSets(pn)
 					end,
 		popup =		function(pn, group, target)
@@ -335,10 +347,22 @@ settings = {
 						if admins[pn] then
 							if action=='Toggle' then
 								roomsets[target][1] = not roomsets[target][1]
+								if target=='cheats' then
+									if roomsets['cheats'][1] then
+										ShowCheats(nil)
+									end
+								elseif target=='checkpoint' then
+									if not roomsets['checkpoint'][1] then
+										RemoveCpMark(nil)
+									end
+								end
 								MSG(string.format("%s has %s %s", pn, roomsets[target][1] and 'enabled' or 'disabled', roomsets[target][2]))
 							elseif action=='Reset' then
 								for _,v in ipairs({"rev_delay"}) do
 									roomsets[v][1] = true
+								end
+								for _,v in ipairs({"checkpoint"}) do
+									roomsets[v][1] = false
 								end
 								roomsets['rev_interval'][1] = 1000
 								MSG(pn.." has reset the room settings")
@@ -353,6 +377,8 @@ settings = {
 				end,
 		[46] =	function(pn)  -- delete
 					tfm.exec.killPlayer(pn)
+				end,
+		[69] =	function(pn) -- e	
 				end,
 		[71] =	function(pn, enable)  -- g
 					if enable and players[pn].keys['shift'] and roundvars.notvanilla then
@@ -413,6 +439,40 @@ settings = {
 }
 
 ----- BREAKCORD
+
+function SetCpMark(pn, x, y)
+	if pn == nil then
+		for name,attr in pairs(tfm.get.room.playerList) do
+			SetCpMark(name, x, y)
+		end
+	else
+		if x == nil or y == nil then
+			if cp_coords[pn] then  -- allow re-setting cp with nil coords in case playersets changed
+				x = cp_coords[pn][1]
+				y = cp_coords[pn][2]
+			else
+				return
+			end
+		else
+			cp_coords[pn] = {x, y}
+		end
+		if players[pn].playersets['cp_particles'] then
+			ui.removeTextArea(enum.txarea.cp, pn)
+		else
+			ui.addTextArea(enum.txarea.cp,"", pn, x-1, y-2, 4, 4, 0xfc572d, 0xffffff, .5, false)
+		end
+	end
+end
+
+function RemoveCpMark(pn)
+	if pn == nil then
+		ui.removeTextArea(enum.txarea.cp, nil)
+		cp_coords = {}
+	else
+		ui.removeTextArea(enum.txarea.cp, pn)
+		cp_coords[pn] = nil
+	end
+end
 
 function ReadXML()
 	if roundvars.notvanilla then
@@ -572,8 +632,8 @@ function ShowHelp(pn, tab)
 	end
 	titles = {General="Welcome to Breakcord", Admins="Admin Powers", Maps="Loading Maps", Credits="Credits"}
 
-	info = {General="This is a Work-In-Progress module intended as a #records alternative. It is obviously nowhere near completion so just use !parkour for now I guess?<br><br><li>!admins/!banned - lists the admins or banned players</li><li>!help - help</li><li>!log - see the message history (hotkey: `)</li><li>!m - kills yourself</li><li>!mapinfo - lists information about the map</li><br><br><font size='15'>Hotkeys:</font><br><li>press h - help</li><li>press shift+g - see ground list</li><li>hold g - click a ground to see its properties</li><li>press l - see leaderboards and best timings</li><li>press p - see player settings</li><li>press delete - kills youself</li>",
-			Admins="<li>!time # - changes the time</li><br><br><font size='15'>Debug</font><li>!debug on/!debug off - toggles debug mode and its commands</li><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><li>o - see settings (room)</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
+	info = {General="This is a Work-In-Progress module intended as a #records alternative. It is obviously nowhere near completion so just use !parkour for now I guess?<br><br><li>!admins/!banned - lists the admins or banned players</li><li>!help - help</li><li>!log - see the message history (hotkey: `)</li><li>!m - kills yourself</li><li>!mapinfo - lists information about the map</li><br><br><font size='15'>Hotkeys:</font><br><li>press h - help</li><li>press shift+g - see ground list</li><li>hold g - click a ground to see its properties</li><li>press l - see leaderboards and best timings</li><li>press p - see player settings</li><li>press delete - kills youself</li><li>press e - set checkpoint</li><li>press shift+e - remove checkpoint</li>",
+			Admins="<li>!time # - changes the time</li><li>o - see settings (room)</li><br><br><font size='15'>Cheats</font><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
 			Maps="<li>!map/!np [code] - loads the map code</li><li>!map/!np [code] mirror - loads the map code in a mirrored state</li><li>!parkour [code] - loads a map in parkour mode</li><li>!skip - skips the current round during rotation</li><br><font size='15'>Other:</font><br><li>!map/!np history - list of maps played</li><li>!rst/!rst aie/!rst mirror - reloads the map</li>",
 			Credits="<li>Buildtool by Emeryaurora#0000 for a large portion of the base code</li>"}
 	
@@ -581,6 +641,11 @@ function ShowHelp(pn, tab)
 	ui.addTextArea(enum.txarea.helptab, gui_btn.."<p align='center'>"..table.concat(buttonstr,'                      '), pn,75,35,650,20,gui_bg,gui_b,gui_o,true)
 	ui.addTextArea(enum.txarea.help, info, pn,75,70,650,nil,gui_bg,gui_b,gui_o,true)
 	players[pn].windows.help = true
+end
+
+function ShowCheats(pn)
+	roundvars.cheats = true
+	ui.addTextArea(enum.txarea.cheats,"<R>Cheats enabled", pn, 5, 25, 0, 0, gui_bg, gui_b, .7, true)
 end
 
 function ShowLeaderboard(pn, tab)
@@ -595,11 +660,15 @@ function ShowLeaderboard(pn, tab)
 	str = str.."<ROSE>@"..roundvars.thismap..(mapsets.Mirrored and " (Mirrored)" or "").."<br><V>"..string.rep("&#x2500;", 15).."</p><p align='left'><br>"
 
 	if tab == 1 then
-		local sort = table.copy(roundvars.completes)
-		table.sort(sort, function(a,b) return (a[2] < b[2]) end)
-		for i, t in ipairs(sort) do
-			local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-			str = str..string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+		if roundvars.cheats and not roomsets.debug then
+			str = str.."<p align='center'>Room records are void with cheats. Restart the round without cheats to enable room records.</p>"
+		else
+			local sort = table.copy(roundvars.completes)
+			table.sort(sort, function(a,b) return (a[2] < b[2]) end)
+			for i, t in ipairs(sort) do
+				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
+				str = str..string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+			end
 		end
 	elseif tab == 2 then
 		str = str.."Work-In-Progress"
@@ -630,7 +699,7 @@ end
 
 function GetRoomSets(pn)
 	local str = "<p align='center'><font size='15'>Room Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"
-	for _,v in ipairs({'rev_delay'}) do
+	for _,v in ipairs({'cheats','checkpoint','rev_delay'}) do
 		local blt,col = "&#9744;", "<VI>"
 		if roomsets[v][1] then
 			blt = "&#9745;"
@@ -656,6 +725,7 @@ function init()
 	end
 	system.disableChatCommandDisplay(nil,true)
 	for name in pairs(tfm.get.room.playerList) do eventNewPlayer(name) end
+	tfm.exec.newGame('#17')
 end
 
 ----- EVENTS
@@ -688,7 +758,9 @@ function eventChatCommand(pn, msg)
 end
 
 function eventKeyboard(pn, k, d, x, y)
-	if settings.keys[k] then  -- prevent possible NPE
+	if gameplay.keys[k] then
+		gameplay.keys[k](pn,d,x,y)
+	elseif settings.keys[k] then  -- prevent possible NPE
 		settings.keys[k](pn,d,x,y)
 	end
 end
@@ -698,12 +770,22 @@ function eventLoop(time, remaining)
 		if os.time()>(v[1]+v[2]) then
 			if v[3]=='rev' then 
 				tfm.exec.respawnPlayer(v[4])
+				if v[5] then
+					tfm.exec.movePlayer(v[4], v[5][1], v[5][2])
+				end
 			elseif v[3]=='timeshow' then
 				for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
 					ui.removeTextArea(id, pn)
 				end
 			end
 			table.remove(timers,i) break 
+		end
+	end
+	for name,attr in pairs(tfm.get.room.playerList) do
+		if players[name].playersets['cp_particles'] and cp_coords[name] then
+			local x, y = cp_coords[name][1], cp_coords[name][2]
+			tfm.exec.displayParticle(tfm.enum.particle.redConfetti, x, y-3, 0, 0, 0, 0, name)
+			tfm.exec.displayParticle(tfm.enum.particle.blueConfetti, x, y+3, 0, 0, 0, 0, name)
 		end
 	end
 	if gameplay.event['Loop'] then
@@ -715,7 +797,7 @@ mouse_pos = {} -- TODO: remove for production
 function eventMouse(pn, x, y)
 	if not players[pn] then return end
 	if mouse_pos[pn] then MSG("X: "..x.."  Y: "..y, pn) end  -- TODO: remove for production
-	if roomsets.debug and players[pn].tptarget and admins[pn] then
+	if roomsets.cheats[1] and players[pn].tptarget and admins[pn] then
 		ExecuteForTargets(pn, players[pn].tptarget,
 			function(name)
 				tfm.exec.movePlayer(name, x, y)
@@ -723,7 +805,7 @@ function eventMouse(pn, x, y)
 		)
 		players[pn].tptarget = nil
 	elseif players[pn].keys['shift'] then --shift+click to tp if admin
-		if roomsets.debug and admins[pn] then
+		if roomsets.cheats[1] and admins[pn] then
 			tfm.exec.movePlayer(pn, x, y)
 		end
 	elseif players[pn].keys['g'] then --g+click static ground to see properties
@@ -738,9 +820,6 @@ function eventMouse(pn, x, y)
 end
 
 function eventNewGame()
-	for _, t in ipairs({'pk_stage'}) do
-		ui.removeTextArea(enum.txarea[t], nil)
-	end
 	for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
 		ui.removeTextArea(id, pn)
 	end
@@ -756,6 +835,12 @@ function eventNewGame()
 			tfm.exec.setPlayerScore(name, -10)
 		end
 	end
+	if not roomsets.cheats[1] then  -- start a fresh round that doesn't have cheats
+		ui.removeTextArea(enum.txarea.cheats, nil)
+	else
+		roundvars.cheats = true
+	end
+	RemoveCpMark(nil)
 	maplist[#maplist+1] = {string.format("\t%s<a href='event:load!%s'>code: %s</a><N>", gui_btn, roundvars.thismap, roundvars.thismap), string.format("\t%s",tfm.get.room.xmlMapInfo and tfm.get.room.xmlMapInfo.author or 'unknown'), string.format("\tperm: %s", tfm.get.room.xmlMapInfo and tfm.get.room.xmlMapInfo.permCode or 'unknown')}
 	ReadXML()
 	gameplay = gamemodes[roundvars.maptype] or gamemodes.normal
@@ -792,6 +877,9 @@ function eventNewPlayer(pn)
 	if roomowners[pn] then admins[pn] = true end
 	--ShowHelp(pn,'General')
 	--ShowLog(pn)
+	if roomsets.cheats[1] then
+		ShowCheats(pn)
+	end
 	MSG(pn.. " has entered the room.", nil, "J")
 	if gameplay.event['NewPlayer'] then
 		gameplay.event.NewPlayer(pn)
@@ -830,7 +918,7 @@ function eventPopupAnswer(id, pn, answer)
 	elseif topic:find('RS!') and admins[pn] then
 		if tonumber(answer) and tonumber(answer)>=0 then
 			roomsets[target][1] = tonumber(answer)
-			MSG(string.format("%s has set %s to %s", pn, roomsets[target][2], answer))
+			MSG(string.format("%s has set %s to %s", pn, roomsets[target][2]:lower(), answer))
 			UpdateRoomSets()
 		else MSG("number",pn,'R')
 		end
@@ -856,6 +944,11 @@ function ExecuteForTargets(pn, targets, f)
 	elseif targets then
 		f(targets)
 	end
+end
+
+function math.round(num, numDecimalPlaces)
+  local mult = 10^(numDecimalPlaces or 0)
+  return math.floor(num * mult + 0.5) / mult
 end
 
 function pFind(target, pn)

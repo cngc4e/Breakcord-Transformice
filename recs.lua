@@ -115,7 +115,7 @@ gamemodes = {
 						local next_stage = (gameplay.stage[name] or 0) + 1
 						if cnails[next_stage] and pythag(attr.x,attr.y,cnails[next_stage][1],cnails[next_stage][2],8) then
 							gameplay.stage[name] = next_stage
-							tfm.exec.setPlayerScore(name, 1, true)
+							tfm.exec.setPlayerScore(name, next_stage+1)
 							local pos = nil
 							if cnails[next_stage+1] then
 								pos = cnails[next_stage+1]
@@ -651,12 +651,12 @@ function ShowCheats(pn)
 end
 
 function ShowLeaderboard(pn, tab)
-	local tabs = {"Room Best", "Global Best", "&#9421; Close"}
-	local tabstr,str = "<p align='center'><V>"..string.rep("&#x2500;", 8).."<br>","<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"
+	local tabs = {"Room Best", "Global Best", "&#9587; Close"}
+	local tabstr,str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>","<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"
 	
 	for i,t in ipairs(tabs) do
 		local col = (tab==i) and "<T>" or gui_btn
-		tabstr = tabstr..string.format("%s<a href='event:leaderboard!%d'>%s</a><br><V>%s<br>",col,i,t,string.rep("&#x2500;", 8))
+		tabstr = tabstr..string.format("%s<a href='event:leaderboard!%d'>%s</a><br><V>%s<br>",col,i,t,string.rep("&#x2500;", 6))
 	end
 
 	str = str.."<ROSE>@"..roundvars.thismap..(mapsets.Mirrored and " (Mirrored)" or "").."<br><V>"..string.rep("&#x2500;", 15).."</p><p align='left'><br>"
@@ -673,7 +673,14 @@ function ShowLeaderboard(pn, tab)
 			end
 		end
 	elseif tab == 2 then
-		str = str.."Work-In-Progress"
+		local times,cat = FetchTimes(roundvars.thismap)
+		if times then
+			for i, t in ipairs(times[mapsets.Mirrored and 2 or 1]) do
+				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
+				str = str..string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+			end
+		end
+		str = str.."<br><p align='right'><N>Last updated: "..db_updated.."    </p>"
 	end
 	ui.addTextArea(enum.txarea.leaderboardtab, tabstr, pn,170,60,70,nil,gui_bg,gui_b,gui_o,true)
 	ui.addTextArea(enum.txarea.leaderboard, str, pn,250,50,300,300,gui_bg,gui_b,gui_o,true)
@@ -949,6 +956,16 @@ function ExecuteForTargets(pn, targets, f)
 	end
 end
 
+-- returns (times, category) or nil if no map
+function FetchTimes(map)
+	map = tostring(map)
+	for cat,val in pairs(db) do
+		if val[map] then
+			return val[map], cat
+		end
+	end
+end
+
 function math.round(num, numDecimalPlaces)
   local mult = 10^(numDecimalPlaces or 0)
   return math.floor(num * mult + 0.5) / mult
@@ -1022,3 +1039,5 @@ end
 
 ----- 
 init()
+
+----- TEMP DATABASE

@@ -156,9 +156,12 @@ gamemodes = {
 				tfm.exec.setGameTime(900)
 			end,
 			NewPlayer = function(pn)
-				tfm.exec.respawnPlayer(pn)
+				gameplay.event.PlayerDied(pn)
 				tfm.exec.setPlayerScore(pn, 1)
-				SetCpMark(pn, cnails[1][1], cnails[1][2])
+				if not gameplay.timestart[pn] then
+					gameplay.timestart[pn] = os.time()
+				end
+				SetCpMark(pn)
 			end,
 			PlayerDied = function(pn)
 				if banned[pn] then return end

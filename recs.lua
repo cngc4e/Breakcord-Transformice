@@ -403,16 +403,14 @@ settings = {
 					end
 				end,
 		[76] =	function(pn) -- L (display leaderboard)
-					if players[pn].windows.leaderboard then
+					local tab = players[pn].keys['shift'] and 2 or 1
+					if (players[pn].windows.leaderboard and players[pn].windows.leaderboardtab ~= tab)
+							or not players[pn].windows.leaderboard then
+						ShowLeaderboard(pn, tab)
+					else
 						ui.removeTextArea(enum.txarea.leaderboard, pn)
 						ui.removeTextArea(enum.txarea.leaderboardtab, pn)
 						players[pn].windows.leaderboard = false
-					else
-						if players[pn].keys['shift'] then
-							ShowLeaderboard(pn, 2)
-						else
-							ShowLeaderboard(pn, 1)
-						end
 					end
 				end,
 		[79] =	function(pn) -- o (display room options)

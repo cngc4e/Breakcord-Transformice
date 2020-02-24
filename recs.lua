@@ -157,7 +157,7 @@ gamemodes = {
 			end,
 			NewPlayer = function(pn)
 				gameplay.event.PlayerDied(pn)
-				tfm.exec.setPlayerScore(pn, 1)
+				tfm.exec.setPlayerScore(pn, (gameplay.stage[pn] or 0)+1)
 				if not gameplay.timestart[pn] then
 					gameplay.timestart[pn] = os.time()
 				end

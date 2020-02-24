@@ -231,11 +231,18 @@ settings = {
 							players[pn].book.title = "Map History"
 							settings.buttons.page(pn,1)
 						else
-							local T = {p4='#4',p8='#8'}
 							if w2 then
+								local T, map = {wj='WJ', walljump='WJ'}, w2
 								roundvars.maptype = 'normal'
-								tfm.exec.newGame(T[w2] or w2, w3=='mirror' and true or false)
-							--else tfm.exec.newGame(settings.maps.leisure[math.random(1,#settings.maps.leisure)]) roundvars.maptype = 'leisure'
+								if T[w2:lower()] then
+									local codes = {}
+									for code in pairs(db[T[w2:lower()]]) do
+										codes[#codes+1] = code
+									end
+									map = codes[math.random(1, #codes)]
+								end
+								tfm.exec.newGame(map, w3=='mirror' and true or false)
+							else tfm.exec.newGame('#17')
 							end
 							return true
 						end

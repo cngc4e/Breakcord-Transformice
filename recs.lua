@@ -14,7 +14,7 @@ grounds = {}
 cnails = {}
 cp_coords = {}
 
-roomsets = {debug=false,cheats={true, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
+roomsets = {debug=false,cheats={false, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
 
 groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
 
@@ -366,7 +366,7 @@ settings = {
 								for _,v in ipairs({"rev_delay"}) do
 									roomsets[v][1] = true
 								end
-								for _,v in ipairs({"checkpoint"}) do
+								for _,v in ipairs({"checkpoint", "cheats"}) do
 									roomsets[v][1] = false
 								end
 								roomsets['rev_interval'][1] = 1000

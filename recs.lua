@@ -66,7 +66,7 @@ gamemodes = {
 				local t = (elapsedRespawn or elapsed)/100
 				table.insert(roundvars.completes, {pn, t})
 				gameplay.event.PlayerDied(pn)
-				MSG("You beat map "..roundvars.thismap.." in "..t.." seconds!",name,'ROSE')
+				MSG("You beat map "..roundvars.thismap.." in "..t.." seconds!",pn,'ROSE')
 				for name,attr in pairs(tfm.get.room.playerList) do
 					if players[pn].playersets['time_show'] then
 						local x, y, sT = 10, 30, mapsets
@@ -627,7 +627,7 @@ end
 function ShowMapInfo( pn )
 	if roundvars.notvanilla then
 		local sT,strT = mapsets
-		strT = {string.format("<ROSE>[Map Info]<J> %s <N>by %s%s%s<N>",roundvars.thismap, tfm.get.room.xmlMapInfo.author, sT.Mirrored and ' (mirrored)' or '', (roundvars.maptype=='divinity' or roundvars.maptype=='spiritual') and ' | <J>Difficulty: <VP>'..tostring(roundvars.divspilvl) or ''),
+		strT = {string.format("<ROSE>[Map Info]<J> %s <N>by %s%s<N>",roundvars.thismap, tfm.get.room.xmlMapInfo.author, sT.Mirrored and ' (mirrored)' or ''),
 			string.format("Wind: %s | Gravity: %s",sT.Wind or '0',sT.Gravity or '10')}
 		MSG(table.concat(strT, "\n"),pn,"N")
 	end

@@ -263,6 +263,15 @@ settings = {
 						queued_maptype = 'parkour'
 						tfm.exec.newGame(map)
 					end,
+		restart =	function(pn)
+						if roundvars.maptype=='parkour' then
+							gameplay.stage[pn] = nil
+							gameplay.completed[pn] = nil
+							gameplay.timestart[pn] = nil
+							tfm.exec.killPlayer(pn)
+							gameplay.event.NewPlayer(pn)
+						end
+					end,
 		rst =		function(pn, m, w1, w2)
 						queued_maptype = roundvars.maptype
 						tfm.exec.newGame(roundvars.thismap, w2=='mirror')

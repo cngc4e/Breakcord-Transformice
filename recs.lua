@@ -160,8 +160,10 @@ gamemodes = {
 				tfm.exec.setPlayerScore(pn, (gameplay.stage[pn] or 0)+1)
 				if not gameplay.timestart[pn] then
 					gameplay.timestart[pn] = os.time()
+					SetCpMark(nil, cnails[1][1], cnails[1][2])
+				else
+					SetCpMark(pn)
 				end
-				SetCpMark(pn)
 			end,
 			PlayerDied = function(pn)
 				if banned[pn] then return end

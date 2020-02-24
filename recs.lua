@@ -14,6 +14,8 @@ grounds = {}
 cnails = {}
 cp_coords = {}
 
+queued_maptype = nil
+
 roomsets = {debug=false,cheats={false, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
 
 groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
@@ -235,7 +237,7 @@ settings = {
 						else
 							if w2 then
 								local T, map = {wj='WJ',walljump='WJ',cj='CJ',cornerjump='CJ',ta='TA',turnaround='TA'}, w2
-								roundvars.maptype = 'normal'
+								queued_maptype = 'normal'
 								if T[w2:lower()] then
 									local codes = {}
 									for code in pairs(db[T[w2:lower()]]) do
@@ -258,10 +260,11 @@ settings = {
 							end
 							map = codes[math.random(1, #codes)]
 						end
-						roundvars.maptype = 'parkour'
+						queued_maptype = 'parkour'
 						tfm.exec.newGame(map)
 					end,
 		rst =		function(pn, m, w1, w2)
+						queued_maptype = roundvars.maptype
 						tfm.exec.newGame(roundvars.thismap, w2=='mirror')
 					end,
 		time =		function(pn, m, w1, w2)
@@ -307,7 +310,7 @@ settings = {
 					end,
 		load =		function(pn, code, type)
 						if admins[pn] then
-							roundvars.maptype = type or 'normal'
+							queued_maptype = type or 'normal'
 							tfm.exec.newGame(code)
 						else
 							MSG("[•] @"..code, pn)
@@ -749,7 +752,7 @@ function init()
 	end
 	system.disableChatCommandDisplay(nil,true)
 	for name in pairs(tfm.get.room.playerList) do eventNewPlayer(name) end
-	roundvars.maptype = 'normal'
+	queued_maptype = 'normal'
 	tfm.exec.newGame('#17')
 end
 
@@ -849,7 +852,7 @@ function eventNewGame()
 		ui.removeTextArea(id, pn)
 	end
 	grounds,cnails = {list={}}, {}
-	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,holes={}}, {maptype=roundvars.maptype,completes={}}
+	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,holes={}}, {maptype=queued_maptype or 'normal',completes={}}
 	roundvars.thismap = tonumber(tfm.get.room.currentMap:match('%d+'))
 	if roundvars.thismap>800 then roundvars.notvanilla = true	end
 	if not roundvars.notvanilla then tfm.get.room.xmlMapInfo = nil end

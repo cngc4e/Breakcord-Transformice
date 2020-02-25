@@ -66,7 +66,7 @@ gamemodes = {
 			end,
 			PlayerWon = function(pn, elapsed, elapsedRespawn)
 				local t = (elapsedRespawn or elapsed)/100
-				table.insert(roundvars.completes, {pn, t})
+				table.insert(roundvars.completes, {ZeroTag(pn), t})
 				gameplay.event.PlayerDied(pn)
 				MSG("You beat map "..roundvars.thismap.." in "..t.." seconds!",pn,'ROSE')
 				for name,attr in pairs(tfm.get.room.playerList) do

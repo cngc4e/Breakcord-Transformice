@@ -35,9 +35,12 @@ enum = {
 		ps = 6,
 		rs = 7,
 		cheats = 8,
+		cp = 9,
+		menu_help = 10,
+		menu_player = 11,
+		menu_room = 12,
 		start_timeshow = 100,
 		end_timeshow = 108,
-		cp = 200,
 		log = 1000,
 	}
 }
@@ -367,9 +370,11 @@ settings = {
 						local text = "<p align='center'><N><font size='15'>"..book.title.."</font>\n<p align='left'>"..str
 						ui.addTextArea(enum.txarea.book,text,pn,175,50,450,325,gui_bg,gui_b,gui_o,true)
 					end,
-		playersets =function(pn, action, set)						
-						players[pn].playersets[set] = not players[pn].playersets[set]
-						if set=='cp_particles' then SetCpMark(pn) end
+		playersets =function(pn, action, set)	
+						if action=='Toggle' then
+							players[pn].playersets[set] = not players[pn].playersets[set]
+							if set=='cp_particles' then SetCpMark(pn) end
+						end
 						ShowPlayerSets(pn)
 					end,
 		popup =		function(pn, group, target)
@@ -380,7 +385,9 @@ settings = {
 						MSG("[•] "..msg, pn)
 					end,
 		roomsets =	function(pn, action, target)
-						if admins[pn] then
+						if not action then
+							ShowRoomSets(pn)
+						elseif admins[pn] then
 							if action=='Toggle' then
 								roomsets[target][1] = not roomsets[target][1]
 								if target=='cheats' then
@@ -451,8 +458,7 @@ settings = {
 						ui.removeTextArea(enum.txarea.rs, pn)
 						players[pn].windows.rs = false
 					else
-						ui.addTextArea(enum.txarea.rs,GetRoomSets(pn),pn,270,55,250,310,gui_bg,gui_b,gui_o,true)
-						players[pn].windows.rs = true
+						ShowRoomSets(pn)
 					end
 				end,
 		[80] =	function(pn) -- p (display player options)
@@ -684,6 +690,12 @@ function ShowCheats(pn)
 	ui.addTextArea(enum.txarea.cheats,"<R>Cheats enabled", pn, 5, 25, 0, 0, gui_bg, gui_b, .7, true)
 end
 
+function ShowMenu(pn)
+	ui.addTextArea(enum.txarea.menu_help,"<p align='center'><a href='event:help!General'>?", pn, 5, -20, 20, 0, gui_bg, gui_b, .7, true)
+	ui.addTextArea(enum.txarea.menu_player,"<p align='center'><a href='event:playersets'>P", pn, 35, -20, 20, 0, gui_bg, gui_b, .7, true)
+	ui.addTextArea(enum.txarea.menu_room,"<p align='center'><a href='event:roomsets'>O", pn, 65, -20, 20, 0, gui_bg, gui_b, .7, true)
+end
+
 function ShowLeaderboard(pn, tab)
 	local tabs = {"Room Best", "Global Best", "&#9587; Close"}
 	local tabstr,str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>","<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"
@@ -738,6 +750,11 @@ function ShowPlayerSets(pn)
 	end
 	ui.addTextArea(enum.txarea.ps,str..string.format("</p><br><p align='center'>%s<a href='event:close!ps'>Close</a></font></p>", gui_btn),pn, 270,55,250,310,gui_bg,gui_b,gui_o,true)
 	players[pn].windows.ps = true
+end
+
+function ShowRoomSets(pn)
+	ui.addTextArea(enum.txarea.rs,GetRoomSets(pn),pn,270,55,250,310,gui_bg,gui_b,gui_o,true)
+	players[pn].windows.rs = true
 end
 
 function GetRoomSets(pn)
@@ -921,6 +938,7 @@ function eventNewPlayer(pn)
 	if roomowners[pn] then admins[pn] = true end
 	--ShowHelp(pn,'General')
 	--ShowLog(pn)
+	ShowMenu(pn)
 	if roomsets.cheats[1] then
 		ShowCheats(pn)
 	end

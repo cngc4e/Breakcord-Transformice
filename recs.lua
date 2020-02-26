@@ -91,6 +91,10 @@ gamemodes = {
 							end
 						end
 						ui.addTextArea(enum.txarea.start_timeshow,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>"..t.."s</font></b>", nil, x, y, 0, 0, 0xffffff, 0x000000, 0, true)
+						for i,v in ipairs(timers) do
+							if v[3]=='timeshow' then table.remove(timers,i) break 
+							end
+						end
 						table.insert(timers,{os.time(),5500,'timeshow',pn})
 					end
 				end

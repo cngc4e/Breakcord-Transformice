@@ -690,10 +690,13 @@ function ShowCheats(pn)
 	ui.addTextArea(enum.txarea.cheats,"<R>Cheats enabled", pn, 5, 25, 0, 0, gui_bg, gui_b, .7, true)
 end
 
-function ShowMenu(pn)
-	ui.addTextArea(enum.txarea.menu_help,"<p align='center'><a href='event:help!General'>?", pn, 5, -20, 20, 0, gui_bg, gui_b, .7, true)
-	ui.addTextArea(enum.txarea.menu_player,"<p align='center'><a href='event:playersets'>P", pn, 35, -20, 20, 0, gui_bg, gui_b, .7, true)
-	ui.addTextArea(enum.txarea.menu_room,"<p align='center'><a href='event:roomsets'>O", pn, 65, -20, 20, 0, gui_bg, gui_b, .7, true)
+function ShowMenu(pn, hide)
+	if hide==nil then hide = true end
+	local T = {{enum.txarea.menu_help,"event:help!General","?"},{enum.txarea.menu_player,"event:playersets","P"},{enum.txarea.menu_room,"event:roomsets","O"}}
+	local x, y = 800-(30*(#T+1)), hide and -20 or 25
+	for i,m in ipairs(T) do
+		ui.addTextArea(m[1],"<p align='center'><a href='"..m[2].."'>"..m[3], pn, x+(i*30), y, 20, 0, gui_bg, gui_b, .7, true)
+	end
 end
 
 function ShowLeaderboard(pn, tab)
@@ -838,6 +841,8 @@ function eventLoop(time, remaining)
 				for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
 					ui.removeTextArea(id, pn)
 				end
+			elseif v[3]=='hidemenu' then
+				ShowMenu(pn, true)
 			end
 			table.remove(timers,i) break 
 		end
@@ -938,7 +943,8 @@ function eventNewPlayer(pn)
 	if roomowners[pn] then admins[pn] = true end
 	--ShowHelp(pn,'General')
 	--ShowLog(pn)
-	ShowMenu(pn)
+	ShowMenu(pn, false)
+	table.insert(timers,{os.time(),7000,'hidemenu',pn})
 	if roomsets.cheats[1] then
 		ShowCheats(pn)
 	end

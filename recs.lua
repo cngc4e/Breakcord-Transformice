@@ -104,11 +104,10 @@ gamemodes = {
 			end,
 		},
 		keys = {
-			[69] =	function(pn) -- e (checkpoint)
+			[69] =	function(pn, d, x, y) -- e (checkpoint)
 						if roomsets.cheats[1] and roomsets.checkpoint[1] then
 							if not players[pn].keys['shift'] then
-								local p = tfm.get.room.playerList[pn]
-								SetCpMark(pn, p.x, p.y)
+								SetCpMark(pn, x, y)
 							else
 								RemoveCpMark(pn)
 							end

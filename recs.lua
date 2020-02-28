@@ -389,27 +389,28 @@ settings = {
 							ShowRoomSets(pn)
 						elseif admins[pn] then
 							if action=='Toggle' then
-								roomsets[target][1] = not roomsets[target][1]
+								local rs = roomsets
+								rs[target][1] = not rs[target][1]
 								if target=='cheats' then
-									if roomsets['cheats'][1] then
+									if rs['cheats'][1] then
 										ShowCheats(nil)
 									elseif roundvars.maptype=='normal' then
 										RemoveCpMark(nil)
 									end
 								elseif target=='checkpoint' then
-									if not roomsets['checkpoint'][1] and roundvars.maptype=='normal' then
+									if not rs['checkpoint'][1] and roundvars.maptype=='normal' then
 										RemoveCpMark(nil)
 									end
 								end
-								MSG(string.format("%s has %s %s", pn, roomsets[target][1] and 'enabled' or 'disabled', roomsets[target][2]:lower()))
+								MSG(string.format("%s has %s %s", pn, rs[target][1] and 'enabled' or 'disabled', rs[target][2]:lower()))
 							elseif action=='Reset' then
 								for _,v in ipairs({"rev_delay"}) do
-									roomsets[v][1] = true
+									rs[v][1] = true
 								end
 								for _,v in ipairs({"checkpoint", "cheats"}) do
-									roomsets[v][1] = false
+									rs[v][1] = false
 								end
-								roomsets['rev_interval'][1] = 1000
+								rs['rev_interval'][1] = 1000
 								MSG(pn.." has reset the room settings")
 							end
 							UpdateRoomSets(pn)
@@ -701,24 +702,24 @@ end
 
 function ShowLeaderboard(pn, tab)
 	local tabs = {"Room Best", "Global Best", "&#9587; Close"}
-	local tabstr,str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>","<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"
+	local tabstr,t_str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>",{"<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"}
 	
 	for i,t in ipairs(tabs) do
 		local col = (tab==i) and "<T>" or gui_btn
 		tabstr = tabstr..string.format("%s<a href='event:leaderboard!%d'>%s</a><br><V>%s<br>",col,i,t,string.rep("&#x2500;", 6))
 	end
 
-	str = str.."<ROSE>@"..roundvars.thismap..(mapsets.Mirrored and " (Mirrored)" or "").."<br><V>"..string.rep("&#x2500;", 15).."</p><p align='left'><br>"
+	t_str[#t_str+1] = "<ROSE>@"..roundvars.thismap..(mapsets.Mirrored and " (Mirrored)" or "").."<br><V>"..string.rep("&#x2500;", 15).."</p><p align='left'><br>"
 
 	if tab == 1 then
 		if roundvars.cheats and not roomsets.debug then
-			str = str.."<p align='center'>Room records are void with cheats. Restart the round without cheats to enable room records.</p>"
+			t_str[#t_str+1] = "<p align='center'>Room records are void with cheats. Restart the round without cheats to enable room records.</p>"
 		else
 			local sort = table.copy(roundvars.completes)
 			table.sort(sort, function(a,b) return (a[2] < b[2]) end)
 			for i, t in ipairs(sort) do
 				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-				str = str..string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
 			end
 		end
 	elseif tab == 2 then
@@ -726,13 +727,13 @@ function ShowLeaderboard(pn, tab)
 		if times then
 			for i, t in ipairs(times[mapsets.Mirrored and 2 or 1]) do
 				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-				str = str..string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
 			end
 		end
-		str = str.."<br><p align='right'><N>Last updated: "..db_updated.."    </p>"
+		t_str[#t_str+1] = "<br><p align='right'><N>Last updated: "..db_updated.."    </p>"
 	end
 	ui.addTextArea(enum.txarea.leaderboardtab, tabstr, pn,170,60,70,nil,gui_bg,gui_b,gui_o,true)
-	ui.addTextArea(enum.txarea.leaderboard, str, pn,250,50,300,300,gui_bg,gui_b,gui_o,true)
+	ui.addTextArea(enum.txarea.leaderboard, table.concat(t_str), pn,250,50,300,300,gui_bg,gui_b,gui_o,true)
 	players[pn].windows.leaderboard = true
 	players[pn].windows.leaderboardtab = tab
 end
@@ -761,21 +762,22 @@ function ShowRoomSets(pn)
 end
 
 function GetRoomSets(pn)
-	local str = "<p align='center'><font size='15'>Room Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"
+	local t_str = {"<p align='center'><font size='15'>Room Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}
+	local rs = roomsets
 	for _,v in ipairs({'cheats','checkpoint','rev_delay'}) do
 		local blt,col = "&#9744;", "<VI>"
-		if roomsets[v][1] then
+		if rs[v][1] then
 			blt = "&#9745;"
 			col = "<VP>"
 		end
-		str = str..string.format("%s<a href='event:roomsets!Toggle&%s'>%s   %s</a><br>", col, v, blt, roomsets[v][2])
+		t_str[#t_str+1] = string.format("%s<a href='event:roomsets!Toggle&%s'>%s   %s</a><br>", col, v, blt, rs[v][2])
 	end
-	str = str..'<br>'
+	t_str[#t_str+1] = '<br>'
 	for _,v in ipairs({"rev_interval"}) do
-		str = str..string.format("<N>%s: %s<a href='event:popup!RS&%s'>%s</a><br>", roomsets[v][2], gui_btn, v, roomsets[v][1])
+		t_str[#t_str+1] = string.format("<N>%s: %s<a href='event:popup!RS&%s'>%s</a><br>", rs[v][2], gui_btn, v, rs[v][1])
 	end
-	return str..string.format("</p><br><p align='center'>%s<a href='event:roomsets!Reset'>Reset</a>     %s<a href='event:close!rs'>Close</a></p><N>", gui_btn, gui_btn)
-
+	t_str[#t_str+1] = string.format("</p><br><p align='center'>%s<a href='event:roomsets!Reset'>Reset</a>     %s<a href='event:close!rs'>Close</a></p><N>", gui_btn, gui_btn)
+	return table.concat(t_str)
 end
 
 function UpdateRoomSets()
@@ -847,9 +849,10 @@ function eventLoop(time, remaining)
 			table.remove(timers,i) break 
 		end
 	end
+	local cpc = cp_coords
 	for name,attr in pairs(tfm.get.room.playerList) do
-		if players[name].playersets['cp_particles'] and cp_coords[name] then
-			local x, y = cp_coords[name][1], cp_coords[name][2]
+		if players[name].playersets['cp_particles'] and cpc[name] then
+			local x, y = cp_coords[name][1], cpc[name][2]
 			tfm.exec.displayParticle(tfm.enum.particle.redConfetti, x, y-3, 0, 0, 0, 0, name)
 			tfm.exec.displayParticle(tfm.enum.particle.blueConfetti, x, y+3, 0, 0, 0, 0, name)
 		end

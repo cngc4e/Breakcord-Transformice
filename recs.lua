@@ -1,31 +1,32 @@
 
 ----- INIT / ENUMS
-players = {}
-roomowners = {}
-admins = {}
-banned = {}
-staff = {}
+local players = {}
+local roomowners = {}
+local admins = {}
+local banned = {}
+local staff = {}
 
-roundvars = {}
-timers = {}
-maplist = {}
-mapsets = {}
-grounds = {}
-cnails = {}
-cp_coords = {}
+local roundvars = {}
+local timers = {}
+local maplist = {}
+local mapsets = {}
+local grounds = {}
+local cnails = {}
+local cp_coords = {}
 
-queued_maptype = nil
+local db, db_updated
+local queued_maptype = nil
 
-roomsets = {debug=false,cheats={false, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
+local roomsets = {debug=false,cheats={false, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
 
-groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
+local groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
 
-gui_btn = "<VI>"
-gui_bg = 1 --background
-gui_b = 0 --border
-gui_o = .8
+local gui_btn = "<VI>"
+local gui_bg = 1 --background
+local gui_b = 0 --border
+local gui_o = .8
 
-enum = {
+local enum = {
 	txarea = {
 		help = 1,
 		helptab = 2,
@@ -388,28 +389,27 @@ settings = {
 							ShowRoomSets(pn)
 						elseif admins[pn] then
 							if action=='Toggle' then
-								local rs = roomsets
-								rs[target][1] = not rs[target][1]
+								roomsets[target][1] = not roomsets[target][1]
 								if target=='cheats' then
-									if rs['cheats'][1] then
+									if roomsets['cheats'][1] then
 										ShowCheats(nil)
 									elseif roundvars.maptype=='normal' then
 										RemoveCpMark(nil)
 									end
 								elseif target=='checkpoint' then
-									if not rs['checkpoint'][1] and roundvars.maptype=='normal' then
+									if not roomsets['checkpoint'][1] and roundvars.maptype=='normal' then
 										RemoveCpMark(nil)
 									end
 								end
-								MSG(string.format("%s has %s %s", pn, rs[target][1] and 'enabled' or 'disabled', rs[target][2]:lower()))
+								MSG(string.format("%s has %s %s", pn, roomsets[target][1] and 'enabled' or 'disabled', roomsets[target][2]:lower()))
 							elseif action=='Reset' then
 								for _,v in ipairs({"rev_delay"}) do
-									rs[v][1] = true
+									roomsets[v][1] = true
 								end
 								for _,v in ipairs({"checkpoint", "cheats"}) do
-									rs[v][1] = false
+									roomsets[v][1] = false
 								end
-								rs['rev_interval'][1] = 1000
+								roomsets['rev_interval'][1] = 1000
 								MSG(pn.." has reset the room settings")
 							end
 							UpdateRoomSets(pn)
@@ -762,18 +762,17 @@ end
 
 function GetRoomSets(pn)
 	local t_str = {"<p align='center'><font size='15'>Room Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}
-	local rs = roomsets
 	for _,v in ipairs({'cheats','checkpoint','rev_delay'}) do
 		local blt,col = "&#9744;", "<VI>"
-		if rs[v][1] then
+		if roomsets[v][1] then
 			blt = "&#9745;"
 			col = "<VP>"
 		end
-		t_str[#t_str+1] = string.format("%s<a href='event:roomsets!Toggle&%s'>%s   %s</a><br>", col, v, blt, rs[v][2])
+		t_str[#t_str+1] = string.format("%s<a href='event:roomsets!Toggle&%s'>%s   %s</a><br>", col, v, blt, roomsets[v][2])
 	end
 	t_str[#t_str+1] = '<br>'
 	for _,v in ipairs({"rev_interval"}) do
-		t_str[#t_str+1] = string.format("<N>%s: %s<a href='event:popup!RS&%s'>%s</a><br>", rs[v][2], gui_btn, v, rs[v][1])
+		t_str[#t_str+1] = string.format("<N>%s: %s<a href='event:popup!RS&%s'>%s</a><br>", roomsets[v][2], gui_btn, v, roomsets[v][1])
 	end
 	t_str[#t_str+1] = string.format("</p><br><p align='center'>%s<a href='event:roomsets!Reset'>Reset</a>     %s<a href='event:close!rs'>Close</a></p><N>", gui_btn, gui_btn)
 	return table.concat(t_str)
@@ -848,10 +847,9 @@ function eventLoop(time, remaining)
 			table.remove(timers,i) break 
 		end
 	end
-	local cpc = cp_coords
 	for name,attr in pairs(tfm.get.room.playerList) do
-		if players[name].playersets['cp_particles'] and cpc[name] then
-			local x, y = cp_coords[name][1], cpc[name][2]
+		if players[name].playersets['cp_particles'] and cp_coords[name] then
+			local x, y = cp_coords[name][1], cp_coords[name][2]
 			tfm.exec.displayParticle(tfm.enum.particle.redConfetti, x, y-3, 0, 0, 0, 0, name)
 			tfm.exec.displayParticle(tfm.enum.particle.blueConfetti, x, y+3, 0, 0, 0, 0, name)
 		end
@@ -1097,9 +1095,6 @@ function ZeroTag(pn, add) --#0000 removed for tag matches
 	end
 end
 
------ 
-init()
-
 ----- TEMP DATABASE
 db = {
 P3 = {
@@ -1333,3 +1328,6 @@ P = {
 },
 }
 db_updated = '2020-02-23 09:19 UTC'
+
+----- 
+init()

@@ -90,11 +90,11 @@ gamemodes = {
 							for yoff=-1,1 do
 								if not (xoff==0 and yoff==0) then
 									i=i+1
-									ui.addTextArea(i,"<b><font size='24' color='#000000' face='Soopafresh,Segoe,Verdana'>"..t.."s</font></b>", nil, x+(xoff*(border or 1)), y+(yoff*(border or 1)), 0, 0, 0xffffff, 0x000000, 0, true)
+									ui.addTextArea(i,"<b><font size='24' color='#000000' face='Soopafresh,Segoe,Verdana'>"..t.."s</font></b>", nil, x+(xoff*(border or 1)), y+(yoff*(border or 1)), 0, 0, 0xffffff, 0x000000, 0, false)
 								end
 							end
 						end
-						ui.addTextArea(enum.txarea.start_timeshow,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>"..t.."s</font></b>", nil, x, y, 0, 0, 0xffffff, 0x000000, 0, true)
+						ui.addTextArea(enum.txarea.start_timeshow,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>"..t.."s</font></b>", nil, x, y, 0, 0, 0xffffff, 0x000000, 0, false)
 						for i,v in ipairs(timers) do
 							if v[3]=='timeshow' then table.remove(timers,i) break 
 							end

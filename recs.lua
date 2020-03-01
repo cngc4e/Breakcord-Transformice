@@ -49,6 +49,15 @@ local enum = {
 gamemodes = {
 	normal = {
 		event = {
+			NewGame = function()
+				local t,m = 360, tostring(roundvars.thismap)
+				if db['P17'][m] then
+					t = 63
+				--elseif db['P7'][m] then
+				--	t = 120
+				end
+				tfm.exec.setGameTime(t)
+			end,
 			NewPlayer = function(pn)
 				tfm.exec.respawnPlayer(pn)
 			end,
@@ -162,7 +171,7 @@ gamemodes = {
 					gameplay.timestart[name] = ostime
 				end
 				SetCpMark(nil, cnails[1][1], cnails[1][2])
-				tfm.exec.setGameTime(900)
+				tfm.exec.setGameTime(1080)
 			end,
 			NewPlayer = function(pn)
 				gameplay.event.PlayerDied(pn)

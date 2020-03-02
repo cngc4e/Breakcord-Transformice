@@ -986,7 +986,7 @@ function eventNewPlayer(pn)
 	--ShowLog(pn)
 	ShowMenu(pn, false)
 	table.insert(timers,{os.time(),7000,'hidemenu',pn})
-	if roomsets.cheats[1] then
+	if roundvars.cheats then
 		ShowCheats(pn)
 	end
 	MSG(pn.. " has entered the room.", nil, "J")

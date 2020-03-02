@@ -14,6 +14,7 @@ local grounds = {}
 local cnails = {}
 local cp_coords = {}
 
+local translations
 local db, db_updated
 local queued_maptype = nil
 
@@ -37,9 +38,10 @@ local enum = {
 		rs = 7,
 		cheats = 8,
 		cp = 9,
-		menu_help = 10,
-		menu_player = 11,
-		menu_room = 12,
+		lang = 10,
+		menu_help = 20,
+		menu_player = 21,
+		menu_room = 22,
 		start_timeshow = 100,
 		end_timeshow = 108,
 		log = 1000,
@@ -50,7 +52,7 @@ gamemodes = {
 	normal = {
 		event = {
 			NewGame = function()
-				local t,m = 360, tostring(roundvars.thismap)
+				local t, m = 360, tostring(roundvars.thismap)
 				if db['P17'][m] then
 					t = 63
 				--elseif db['P7'][m] then
@@ -331,6 +333,28 @@ settings = {
 							settings.buttons.close(pn, 'leaderboard')
 						else
 							ShowLeaderboard(pn, tabid)
+						end
+					end,
+		lang =		function(pn, action, chosen)
+						if action=='Show' then
+							local t_str, langs = {"<p align='center'><font size='15'>"..tl(pn,"Localisation","localisation").."</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}, {"en"}
+							for key in pairs(translations) do langs[#langs+1] = key end
+							for _,lang in pairs(langs) do
+								local blt,col = "&#9744;", "<VI>"
+								if players[pn].playersets.lang == lang then
+									blt = "&#9745;"
+									col = "<VP>"
+								end
+								t_str[#t_str+1] = string.format("%s%s<a href='event:lang!Set&%s'>   %s</a><br>", col, blt, lang, lang)
+							end
+							t_str[#t_str+1] = string.format("</p><br><p align='center'>%s<a href='event:close!lang'>Close</a></font></p>", gui_btn)
+							ui.addTextArea(enum.txarea.lang,table.concat(t_str),pn, 270,55,250,310,gui_bg,gui_b,gui_o,true)
+						elseif action=='Set' then
+							players[pn].playersets.lang = chosen
+							-- refresh windows with the new localisation
+							if players[pn].windows.ps then ShowPlayerSets(pn) end
+							if roundvars.cheats then ShowCheats(pn) end
+							settings.buttons.lang(pn, 'Show')
 						end
 					end,
 		load =		function(pn, code, type)
@@ -695,8 +719,13 @@ function ShowHelp(pn, tab)
 end
 
 function ShowCheats(pn)
+	local f = function(name) ui.addTextArea(enum.txarea.cheats,"<R>"..tl(name,"Cheats enabled","cheats_enabled"), name, 5, 25, 0, 0, gui_bg, gui_b, .7, true) end
 	roundvars.cheats = true
-	ui.addTextArea(enum.txarea.cheats,"<R>Cheats enabled", pn, 5, 25, 0, 0, gui_bg, gui_b, .7, true)
+	if not pn then
+		for name in pairs(tfm.get.room.playerList) do f(name) end
+	else
+		f(pn)
+	end
 end
 
 function ShowMenu(pn, hide)
@@ -748,10 +777,10 @@ end
 
 function ShowPlayerSets(pn)
 	local sets_t = {
-		time_show = "Display the most recent timing on screen",
-		cp_particles = "Display fancy particles as checkpoint"
+		time_show = tl(pn,"Display the most recent timing on screen","ps_time_show"),
+		cp_particles = tl(pn,"Display fancy particles as checkpoint","ps_cp_particles")
 	}
-	local str = "<p align='center'><font size='15'>Player Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"
+	local str = "<p align='center'><font size='15'>"..tl(pn,"Player Settings","player_settings").."</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"
 	for key, desc in pairs(sets_t) do
 		local blt,col = "&#9744;", "<VI>"
 		if players[pn].playersets[key] then
@@ -760,6 +789,7 @@ function ShowPlayerSets(pn)
 		end
 		str = str..string.format("%s%s<a href='event:playersets!Toggle&%s'>   %s</a><br>", col, blt, key, desc)
 	end
+	str = str..string.format("<br><N>"..tl(pn,"Localisation","localisation")..": %s<a href='event:lang!Show'>%s</a><br>", gui_btn, players[pn].playersets.lang)
 	ui.addTextArea(enum.txarea.ps,str..string.format("</p><br><p align='center'>%s<a href='event:close!ps'>Close</a></font></p>", gui_btn),pn, 270,55,250,310,gui_bg,gui_b,gui_o,true)
 	players[pn].windows.ps = true
 end
@@ -937,15 +967,17 @@ function eventNewPlayer(pn)
 		system.bindKeyboard(pn,v,false)
 	end
 	players[pn] =
-		{lang = p.community or 'en',
-		tptarget = 'none',
+		{tptarget = 'none',
 		windows = {},
 		keys = {},
 		book = {title=''},
-		playersets = {time_show=true},
+		playersets = {lang='en',time_show=true},
 		popuptopic = '',
 		loglist = {}
 		}
+	if translations[p.community] then
+		players[pn].playersets['lang'] = p.community
+	end
 	if staff[pn] or tfm.get.room.name:find(ZeroTag(pn)) or (ti > 0 and tfm.get.room.name:find(tn)) then 
 		roomowners[pn] = true 
 	end
@@ -1011,8 +1043,7 @@ function eventTextAreaCallback(id, pn, callback)
 	settings.buttons[button or callback](pn, table.unpack(params))
 end
 
------ UTILITIES
-
+----- BREAKCORD UTILITIES
 function ExecuteForTargets(pn, targets, f)
 	if targets=='all' or targets=='*' then
 		for name in pairs(tfm.get.room.playerList) do f(name) end
@@ -1033,11 +1064,6 @@ function FetchTimes(map)
 	end
 end
 
-function math.round(num, numDecimalPlaces)
-  local mult = 10^(numDecimalPlaces or 0)
-  return math.floor(num * mult + 0.5) / mult
-end
-
 function pFind(target, pn)
 	local ign = string.lower(target or ' ')
 	for name in pairs(tfm.get.room.playerList) do
@@ -1053,6 +1079,32 @@ function PointGroundOverlap(GT, Gangle, GL, GH, GX, GY, xPos, yPos)
 	if (GT==13 and pythag(xPos,yPos,GX,GY,GL/2)) or (math.abs(cx-GX)<(GL/2) and math.abs(cy-GY)<(GH/2)) then
 		return true
 	end
+end
+
+function tl(pn, default, key)
+	local lang = players[pn].playersets.lang
+	if translations[lang] and translations[lang][key] then
+		return translations[lang][key]
+	end
+	return default
+end
+
+function ZeroTag(pn, add) --#0000 removed for tag matches
+	if add then
+		if not pn:find('#') then
+			return pn.."#0000"
+		else return pn
+		end
+	else
+		p = pn:find('#0000') and pn:sub(1,-6) or pn
+		return p
+	end
+end
+
+----- GENERAL UTILITIES
+function math.round(num, numDecimalPlaces)
+  local mult = 10^(numDecimalPlaces or 0)
+  return math.floor(num * mult + 0.5) / mult
 end
 
 function pythag(x1, y1, x2, y2, r)
@@ -1092,17 +1144,16 @@ function table.slice(tbl, first, last, step)
 	return sliced
 end
 
-function ZeroTag(pn, add) --#0000 removed for tag matches
-	if add then
-		if not pn:find('#') then
-			return pn.."#0000"
-		else return pn
-		end
-	else
-		p = pn:find('#0000') and pn:sub(1,-6) or pn
-		return p
-	end
-end
+----- LOCALISATION
+translations = {
+	cn = {
+		cheats_enabled = "作弊啟用",
+		localisation = "本土化",
+		player_settings = "用戶設定",
+		ps_time_show = "顯示最近的時間",
+		ps_cp_particles = "將粒子效果顯示為檢查點",
+	},
+}
 
 ----- TEMP DATABASE
 db = {

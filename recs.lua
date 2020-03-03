@@ -52,11 +52,11 @@ gamemodes = {
 	normal = {
 		event = {
 			NewGame = function()
-				local t, m = 360, tostring(roundvars.thismap)
-				if db['P17'][m] then
+				local t, perm = 360, roundvars.notvanilla and tfm.get.room.xmlMapInfo.permCode
+				if perm == 17 then
 					t = 63
-				--elseif db['P7'][m] then
-				--	t = 120
+				elseif perm == 7 then
+					t = 120
 				end
 				tfm.exec.setGameTime(t)
 			end,

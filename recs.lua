@@ -337,8 +337,10 @@ settings = {
 					end,
 		lang =		function(pn, action, chosen)
 						if action=='Show' then
-							local t_str, langs = {"<p align='center'><font size='15'>"..tl(pn,"Localisation","localisation").."</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}, {"en"}
+							local t_str, langs = {"<p align='center'><font size='15'>"..tl(pn,"Localisation","localisation").."</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}, {}
 							for key in pairs(translations) do langs[#langs+1] = key end
+							table.sort(langs)
+							table.insert(langs, 1, "en")
 							for _,lang in pairs(langs) do
 								local blt,col = "&#9744;", "<VI>"
 								if players[pn].playersets.lang == lang then
@@ -710,7 +712,7 @@ function ShowHelp(pn, tab)
 	info = {General="This is a Work-In-Progress module intended as a #records alternative. If the room name contains your name or your tribe's name, then you will automatically have admin power.<br><br><li>!admins/!banned - lists the admins or banned players</li><li>!help - help</li><li>!log - see the message history (hotkey: `)</li><li>!m - kills yourself</li><li>!mapinfo - lists information about the map</li><br><br><font size='15'>Hotkeys:</font><br><li>press h - help</li><li>press shift+g - see ground list</li><li>hold g - click a ground to see its properties</li><li>press l - see leaderboards and best timings</li><li>press p - see player settings</li><li>press delete - kills youself</li><li>press e - set checkpoint</li><li>press shift+e - remove checkpoint</li>",
 			Admins="<li>!time # - changes the time</li><li>o - see settings (room)</li><br><br><font size='15'>Cheats</font><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
 			Maps="<li>!map/!np [code|map type] (mirror) - loads the map code or picks a map of the specified type</li><li>!parkour [code] - loads a map in parkour mode</li><li>!restart - restarts your run during parkour gameplay</li><br><font size='15'>Other:</font><br><li>!map/!np history - list of maps played</li><li>!rst/!rst aie/!rst mirror - reloads the map</li><br><font size='15'>Map types:</font><br><li>wj/walljump - Wall jump practice maps</li><li>cj/cornerjump - Corner jump practice maps</li><li>ta/turnaround - Turnaround practice maps</li><li>v/vanilla - Soloable vanilla maps</li><li>s/shaman - Soloable shaman p4/p8 maps</li>",
-			Credits=string.format("Breakcord is brought to you by the Academy of Building. The GUI is based off the works of Buildtool 2.0.<br><li>Creator: Madguy#7711</li><li>Maintainers of the Transformice World Records database</li><br><font size='15'>Links:</font><br>\t• %s<a href='event:print!%s'>Transformice World Records Spreadsheet</a>", gui_btn, "bit.ly/3935H8M")}
+			Credits=string.format("Breakcord is brought to you by the Academy of Building. The GUI is based off the works of Buildtool 2.0.<br><br><font size='15'>Contributors</font><li>Creator: Madguy#7711</li><li>Maintainers of the Transformice World Records database</li><br><font size='15'>Translations</font><li>cn: Casserole#1798</li><li>ph: Rayallan#0000</li><br><font size='15'>Links</font><br>\t• %s<a href='event:print!%s'>Transformice World Records Spreadsheet</a>", gui_btn, "bit.ly/3935H8M")}
 	
 	info = "<p align='center'><font size='15'>"..titles[tab].."</font></p><br>"..info[tab]:gsub('>!(.-)([,:%-])','><font color="#BABD2F">!%1%2</font>')
 	ui.addTextArea(enum.txarea.helptab, gui_btn.."<p align='center'>"..table.concat(buttonstr,'                      '), pn,75,35,650,20,gui_bg,gui_b,gui_o,true)
@@ -1152,6 +1154,13 @@ translations = {
 		player_settings = "用戶設定",
 		ps_time_show = "顯示最近的時間",
 		ps_cp_particles = "將粒子效果顯示為檢查點",
+	},
+	ph = {
+		cheats_enabled = "Pinagana ang pandaya",
+		localisation = "Lokalisasyon",
+		player_settings = "Setting ng player",
+		ps_time_show = "Ipakita ang pinakabago na oras",
+		ps_cp_particles = "Ipakita ang maliit na partikulo bilang checkpoint",
 	},
 }
 

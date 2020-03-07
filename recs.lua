@@ -640,11 +640,12 @@ settings = {
 								local T, map = {wj='WJ',walljump='WJ',cj='CJ',cornerjump='CJ',ta='TA',turnaround='TA',v='V',vanilla='V',s='S',shaman='S'}, w2
 								queued_maptype = 'normal'
 								if T[w2:lower()] then
-									local codes = {}
+									local codes, n = {}, 0
 									for code in pairs(db[T[w2:lower()]]) do
-										codes[#codes+1] = code
+										n = n + 1
+										codes[n] = code
 									end
-									map = codes[math.random(1, #codes)]
+									map = codes[math.random(1, n)]
 								end
 								tfm.exec.newGame(map, w3=='mirror' and true or false)
 							else tfm.exec.newGame('#17')
@@ -655,11 +656,12 @@ settings = {
 		parkour =	function(pn, m, w1, w2)
 						local map = w2
 						if not w2 then
-							local codes = {}
+							local codes, n = {}, 0
 							for code in pairs(db['P']) do
-								codes[#codes+1] = code
+								n = n + 1
+								codes[n] = code
 							end
-							map = codes[math.random(1, #codes)]
+							map = codes[math.random(1, n)]
 						end
 						queued_maptype = 'parkour'
 						tfm.exec.newGame(map)

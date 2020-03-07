@@ -225,7 +225,7 @@ gameplay = gamemodes.normal
 
 settings = {
 	commands = {
-		adminban =	function(pn, m, w1, w2) --admin/unadmin and ban/unban
+		adminban =	function(pn, m, w1, w2, w3) --admin/unadmin and ban/unban
 						if not roomowners[pn] then MSG('authority', pn, 'R')
 						else
 							local target,bT,T = pFind(w2,pn), {admin=true,ban=true}, w1:find('ban') and banned or admins
@@ -235,7 +235,7 @@ settings = {
 									if w1=='ban' then tfm.exec.killPlayer(target) tfm.exec.setPlayerScore(target,-10)
 									elseif w1=='unban' then tfm.exec.respawnPlayer(target) tfm.exec.setPlayerScore(target,0)
 									end
-									MSG(string.format("%s is %s!",target,w1=='admin' and 'an admin now' or w1=='unadmin' and 'not an admin now' or w1=='ban' and 'banned now' or 'not banned now'))
+									MSG(string.format("%s is %s!%s",target,w1=='admin' and 'an admin now' or w1=='unadmin' and 'not an admin now' or w1=='ban' and 'banned now' or 'not banned now', (w1=='ban' and w3) and ' Reason: '..w3 or ''))
 								else MSG('target', pn, 'R')
 								end
 							end
@@ -710,7 +710,7 @@ function ShowHelp(pn, tab)
 	titles = {General="Welcome to Breakcord", Admins="Admin Powers", Maps="Loading Maps", Credits="Credits"}
 
 	info = {General="This is a Work-In-Progress module intended as a #records alternative. If the room name contains your name or your tribe's name, then you will automatically have admin power.<br><br><li>!admins/!banned - lists the admins or banned players</li><li>!help - help</li><li>!log - see the message history (hotkey: `)</li><li>!m - kills yourself</li><li>!mapinfo - lists information about the map</li><br><br><font size='15'>Hotkeys:</font><br><li>press h - help</li><li>press shift+g - see ground list</li><li>hold g - click a ground to see its properties</li><li>press l - see leaderboards and best timings</li><li>press p - see player settings</li><li>press delete - kills youself</li><li>press e - set checkpoint</li><li>press shift+e - remove checkpoint</li>",
-			Admins="<li>!time # - changes the time</li><li>o - see settings (room)</li><br><br><font size='15'>Cheats</font><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
+			Admins="<li>!time # - changes the time</li><li>o - see settings (room)</li><br><br><font size='15'>Cheats</font><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player] [reason]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
 			Maps="<li>!map/!np [code|map type] (mirror) - loads the map code or picks a map of the specified type</li><li>!parkour [code] - loads a map in parkour mode</li><li>!restart - restarts your run during parkour gameplay</li><br><font size='15'>Other:</font><br><li>!map/!np history - list of maps played</li><li>!rst/!rst aie/!rst mirror - reloads the map</li><br><font size='15'>Map types:</font><br><li>wj/walljump - Wall jump practice maps</li><li>cj/cornerjump - Corner jump practice maps</li><li>ta/turnaround - Turnaround practice maps</li><li>v/vanilla - Soloable vanilla maps</li><li>s/shaman - Soloable shaman p4/p8 maps</li>",
 			Credits=string.format("Breakcord is brought to you by the Academy of Building. The GUI is based off the works of Buildtool 2.0.<br><br><font size='15'>Contributors</font><li>Creator: Madguy#7711</li><li>Maintainers of the Transformice World Records database</li><br><font size='15'>Translations</font><li>cn: Casserole#1798</li><li>ph: Rayallan#0000</li><br><font size='15'>Links</font><br>\t• %s<a href='event:print!%s'>Transformice World Records Spreadsheet</a>", gui_btn, "bit.ly/3935H8M")}
 	

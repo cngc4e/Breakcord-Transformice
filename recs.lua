@@ -48,6 +48,391 @@ local enum = {
 	}
 }
 
+-- Forward declarations (local)
+local SetCpMark, RemoveCpMark, ReadXML, MSG, ShowLog, ShowMapInfo, ShowGroundInfo, ShowHelp, ShowCheats, ShowMenu, ShowLeaderboard, ShowPlayerSets, ShowRoomSets, GetRoomSets, UpdateRoomSets, init
+local gameplay, gamemodes, settings
+
+----- BREAKCORD UTILITIES
+local function ExecuteForTargets(pn, targets, f)
+	if targets=='all' or targets=='*' then
+		for name in pairs(tfm.get.room.playerList) do f(name) end
+	elseif targets=='me' and pn then
+		f(pn)
+	elseif targets then
+		f(targets)
+	end
+end
+
+-- returns (times, category) or nil if no map
+local function FetchTimes(map)
+	map = tostring(map)
+	for cat,val in pairs(db) do
+		if val[map] then
+			return val[map], cat
+		end
+	end
+end
+
+local function pFind(target, pn)
+	local ign = string.lower(target or ' ')
+	for name in pairs(tfm.get.room.playerList) do
+		if string.lower(name):find(ign) then return name end
+	end
+	if pn then MSG('target', pn, 'R') end
+end
+
+local function pythag(x1, y1, x2, y2, r)
+	local x,y,r = x2-x1, y2-y1, r+r
+	return x*x+y*y<r*r
+end
+
+local function PointGroundOverlap(GT, Gangle, GL, GH, GX, GY, xPos, yPos)
+	local theta,c,s,cx,cy = math.rad(Gangle or 0)
+	c,s = math.cos(-theta), math.sin(-theta)
+	cx,cy = GX+c*(xPos-GX)-s*(yPos-GY), GY+s*(xPos-GX)+c*(yPos-GY)
+	if (GT==13 and pythag(xPos,yPos,GX,GY,GL/2)) or (math.abs(cx-GX)<(GL/2) and math.abs(cy-GY)<(GH/2)) then
+		return true
+	end
+end
+
+local function tl(pn, default, key)
+	local lang = players[pn].playersets.lang
+	if translations[lang] and translations[lang][key] then
+		return translations[lang][key]
+	end
+	return default
+end
+
+local function ZeroTag(pn, add) --#0000 removed for tag matches
+	if add then
+		if not pn:find('#') then
+			return pn.."#0000"
+		else return pn
+		end
+	else
+		p = pn:find('#0000') and pn:sub(1,-6) or pn
+		return p
+	end
+end
+
+----- BREAKCORD
+SetCpMark = function(pn, x, y)
+	if pn == nil then
+		for name,attr in pairs(tfm.get.room.playerList) do
+			SetCpMark(name, x, y)
+		end
+	else
+		if x == nil or y == nil then
+			if cp_coords[pn] then  -- allow re-setting cp with nil coords in case playersets changed
+				x = cp_coords[pn][1]
+				y = cp_coords[pn][2]
+			else
+				return
+			end
+		else
+			cp_coords[pn] = {x, y}
+		end
+		if players[pn].playersets['cp_particles'] then
+			ui.removeTextArea(enum.txarea.cp, pn)
+		else
+			ui.addTextArea(enum.txarea.cp,"", pn, x-1, y-2, 4, 4, 0xfc572d, 0xffffff, .5, false)
+		end
+	end
+end
+
+RemoveCpMark = function(pn)
+	if pn == nil then
+		ui.removeTextArea(enum.txarea.cp, nil)
+		cp_coords = {}
+	else
+		ui.removeTextArea(enum.txarea.cp, pn)
+		cp_coords[pn] = nil
+	end
+end
+
+ReadXML = function()
+	if roundvars.notvanilla then
+		xml = tfm.get.room.xmlMapInfo.xml
+		local frg,sT = 0, mapsets
+		local first = true
+		for p in xml:gmatch('<P .->') do
+			if first then
+				for attr, val in p:gmatch('(%S+)="(%S*)"') do
+					local a = string.upper(attr)
+					if a == 'G' then
+						sT.Gravity = string.split(val or "")
+						sT.Wind, sT.Gravity = sT.Gravity[1], sT.Gravity[2]
+					elseif a == 'L' then sT.Length = tonumber(val)
+					end
+				end
+				first = false
+			else
+				local array = {}
+				for attr, val in p:gmatch('(%S+)="(%S*)"') do
+					array[string.upper(attr)] = val or ""
+				end
+				if tonumber(array.T)==19 and array.C=='329cd2' then  -- armchair to denote final parkour cp
+					gamemodes.parkour.armchair = {array.X,array.Y}
+					break -- nothing else to check for at the moment
+				end
+			end
+		end
+		sT.Mirrored = tfm.get.room.mirroredMap and true or false
+		if xml:find('<O>(.-)</O>') then
+			for attributes in xml:match('<O>(.-)</O>'):gmatch('<O (.-)/>') do
+				local array = {}
+				for attr, val in attributes:gmatch('(%S+)="(%S*)"') do
+					array[string.upper(attr)] = val or ""
+				end
+				if tonumber(array.C)==22 then
+					cnails[#cnails + 1] = {array.X,array.Y}
+				end
+			end
+		end
+		if xml:find('<S>(.-)</S>') then
+			for attributes in xml:match('<S>(.-)</S>'):gmatch('<S (.-)/>') do
+				local array = {N=false,X=0,Y=0}
+				for attr, val in attributes:gmatch('(%S+)="(%S*)"') do
+					array[string.upper(attr)] = tonumber(val) or val or ""
+					if attr == 'N' then array.N = true end
+				end
+				if sT.Mirrored then 
+					array.X = sT.Length - tonumber(array.X) 
+					if array.P[5] then
+						array.P[5] = tonumber(array.P[5])>180 and array.P[5]-180 or array.P[5]+180
+					end
+				end
+				if array.P then
+					array.P = string.split(array.P or "")
+				else
+					array.P = {0,0,0.2,0.3,0,0,0,0}
+				end
+				grounds[#grounds+1] = array
+			end
+		end
+		if xml:find('<T ') then
+			for t in xml:gmatch('<T(.-)/>') do
+				local a = {}
+				for attr,val in t:gmatch('(%S+)="(%S*)"') do
+					a[string.upper(attr)] = tonumber(val) or ""
+				end
+				table.insert(sT.holes,{a.X,a.Y})
+			end
+		end
+		for name,attr in pairs(tfm.get.room.playerList) do 
+			ShowMapInfo(name)
+		end
+		for i,ground in ipairs(grounds) do
+			grounds.list[i] = {"\tZ: "..(i-1), string.format("\t%s<a href='event:groundinfo!%s'>info</a><N> ", gui_btn, i), string.format("\tType: %s", groundTypes[tonumber(ground.T or 0)] or 'Unknown'), string.format("\tX: %s", ground.X), string.format("\tY: %s", ground.Y)}
+		end
+	end
+end
+
+MSG = function(msg, pn, color, sender)
+	--print(str)
+	--tfm.exec.chatMessage(str, pn)
+	if not pn then
+		for name,attr in pairs(tfm.get.room.playerList) do
+			MSG(msg, name, color, sender)
+		end
+	elseif pFind(pn) and players[pn] then
+		if color=='R' then
+			msg = "error: "..msg
+		end
+		local maxlogs,ll,str = 25, players[pn].loglist
+		str = string.format("<%s>Ξ %s%s</font>",color or 'J',sender and '['..sender..'] ' or '',msg)
+		if ll[#ll] and ll[#ll][1]==str then
+			ll[#ll][2] = (ll[#ll][2] or 1) + 1
+		else
+			table.insert(ll, {str})
+			if #ll > maxlogs then
+				table.remove(ll, 1)
+			end
+		end
+		if players[pn].windows.log then
+			ShowLog(pn)
+		end
+	end
+end
+
+ShowLog = function(name, page)
+	page = page or 0
+	local props = {
+		-- {x, y, xW, yW}
+		offscreen={-180,300,175,0},
+		onscreen={35,30,500,160}
+	}
+	local type = 'offscreen'
+	local l,offs,text = {}, page*3, "<font size='12' face='Soopafresh,Segoe,Verdana'>"
+	for _,log in ipairs(players[name].loglist) do
+		if log[2] then
+			table.insert(l, log[1].." ("..log[2]..")")
+		else
+			table.insert(l, log[1])
+		end
+	end
+	if #l-offs-4 > 0 then
+		text = text.."<VI><p align='center'><a href='event:log!"..tostring(page+1).."'>&#x25B2;</a></p>"
+	end
+	text = text..table.concat(table.slice(l, #l-offs-3, #l-offs), "<br>")
+	if #l-offs+1 <= #l then
+		text = text.."<br><VI><p align='center'><a href='event:log!"..tostring(page-1).."'>&#x25BC;</a></p>"
+	end
+	text = text.."</font>"
+	ui.addTextArea(enum.txarea.log, text, name,props[type][1],props[type][2],props[type][3],props[type][4],gui_bg,gui_b,gui_o, true)
+	players[name].windows.log = true
+end
+
+ShowMapInfo = function(pn)
+	if roundvars.notvanilla then
+		local sT,strT = mapsets
+		strT = {string.format("<ROSE>[Map Info]<J> %s <N>by %s%s<N>",roundvars.thismap, tfm.get.room.xmlMapInfo.author, sT.Mirrored and ' (mirrored)' or ''),
+			string.format("Wind: %s | Gravity: %s",sT.Wind or '0',sT.Gravity or '10')}
+		MSG(table.concat(strT, "\n"),pn,"N")
+	end
+end
+
+ShowGroundInfo = function(pn, id)
+	if roundvars.notvanilla then
+		local gT = grounds[tonumber(id)]
+		local info = string.format("<N>Ground Properties</font><br><br>Z: %i <G>|<N> Type: %s <G>|<N> X: %i <G>|<N> Y: %i <G>|<N> Length: %i <G>|<N> Height: %i <G>|<N> Friction: %s <G>|<N> Restitution: %s <G>|<N> Angle: %s<br><N> Disappear: %s <G>|<N>Color: %s <G>|<N> Collision: %s <G>|%s Foreground <G>|%s Dynamic <G>|<N> Mass: %s <G>|%s Fixed Rotation",id-1, groundTypes[tonumber(gT.T or 0)] or 'Unknown', gT.X or 0, gT.Y or 0, gT.L or 0, gT.H or 0, gT.P[3] or '-', gT.P[4] or '-', gT.P[5] or '-', gT.V or 'null', gT.T~=12 and gT.T~=13 and 'null' or gT.O or '-', gT.C==1 and 'all' or gT.C==2 and 'cloud' or gT.C==3 and 'anticloud' or gT.C==4 and 'none' or gT.T==8 and 'cloud' or 'all', gT.N and '<VP>' or '<R>', tonumber(gT.P[1])==1 and '<VP>' or '<R>', gT.P[2] or '-', tonumber(gT.P[6])==1 and '<VP>' or '<R>')
+		MSG(info,pn)
+	else MSG('map type',pn, 'R')
+	end
+end
+
+ShowHelp = function(pn, tab)
+	local buttonstr,titles,info = {}
+	for i,v in pairs({'General', 'Admins', 'Maps', 'Credits', 'Close'}) do
+		buttonstr[#buttonstr+1] = "<a href = 'event:help!"..v.."'>"..v.."</a>"
+	end
+	titles = {General="Welcome to Breakcord", Admins="Admin Powers", Maps="Loading Maps", Credits="Credits"}
+
+	info = {General="This is a Work-In-Progress module intended as a #records alternative. If the room name contains your name or your tribe's name, then you will automatically have admin power.<br><br><li>!admins/!banned - lists the admins or banned players</li><li>!help - help</li><li>!log - see the message history (hotkey: `)</li><li>!m - kills yourself</li><li>!mapinfo - lists information about the map</li><br><br><font size='15'>Hotkeys:</font><br><li>press h - help</li><li>press shift+g - see ground list</li><li>hold g - click a ground to see its properties</li><li>press l - see leaderboards and best timings</li><li>press p - see player settings</li><li>press delete - kills youself</li><li>press e - set checkpoint</li><li>press shift+e - remove checkpoint</li>",
+			Admins="<li>!time # - changes the time</li><li>o - see settings (room)</li><br><br><font size='15'>Cheats</font><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player] [reason]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
+			Maps="<li>!map/!np [code|map type] (mirror) - loads the map code or picks a map of the specified type</li><li>!parkour [code] - loads a map in parkour mode</li><li>!restart - restarts your run during parkour gameplay</li><br><font size='15'>Other:</font><br><li>!map/!np history - list of maps played</li><li>!rst/!rst aie/!rst mirror - reloads the map</li><br><font size='15'>Map types:</font><br><li>wj/walljump - Wall jump practice maps</li><li>cj/cornerjump - Corner jump practice maps</li><li>ta/turnaround - Turnaround practice maps</li><li>v/vanilla - Soloable vanilla maps</li><li>s/shaman - Soloable shaman p4/p8 maps</li>",
+			Credits=string.format("Breakcord is brought to you by the Academy of Building. The GUI is based off the works of Buildtool 2.0.<br><br><font size='15'>Contributors</font><li>Creator: Madguy#7711</li><li>Maintainers of the Transformice World Records database</li><br><font size='15'>Translations</font><li>cn: Casserole#1798</li><li>ph: Rayallan#0000</li><br><font size='15'>Links</font><br>\t• %s<a href='event:print!%s'>Transformice World Records Spreadsheet</a>", gui_btn, "bit.ly/3935H8M")}
+	
+	info = "<p align='center'><font size='15'>"..titles[tab].."</font></p><br>"..info[tab]:gsub('>!(.-)([,:%-])','><font color="#BABD2F">!%1%2</font>')
+	ui.addTextArea(enum.txarea.helptab, gui_btn.."<p align='center'>"..table.concat(buttonstr,'                      '), pn,75,35,650,20,gui_bg,gui_b,gui_o,true)
+	ui.addTextArea(enum.txarea.help, info, pn,75,70,650,nil,gui_bg,gui_b,gui_o,true)
+	players[pn].windows.help = true
+end
+
+ShowCheats = function(pn)
+	local f = function(name) ui.addTextArea(enum.txarea.cheats,"<R>"..tl(name,"Cheats enabled","cheats_enabled"), name, 5, 25, 0, 0, gui_bg, gui_b, .7, true) end
+	roundvars.cheats = true
+	if not pn then
+		for name in pairs(tfm.get.room.playerList) do f(name) end
+	else
+		f(pn)
+	end
+end
+
+ShowMenu = function(pn, hide)
+	if hide==nil then hide = true end
+	local T = {{enum.txarea.menu_help,"event:help!General","?"},{enum.txarea.menu_player,"event:playersets","P"},{enum.txarea.menu_room,"event:roomsets","O"}}
+	local x, y = 800-(30*(#T+1)), hide and -20 or 25
+	for i,m in ipairs(T) do
+		ui.addTextArea(m[1],"<p align='center'><a href='"..m[2].."'>"..m[3], pn, x+(i*30), y, 20, 0, gui_bg, gui_b, .7, true)
+	end
+end
+
+ShowLeaderboard = function(pn, tab)
+	local tabs = {"Room Best", "Global Best", "&#9587; Close"}
+	local tabstr,t_str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>",{"<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"}
+	
+	for i,t in ipairs(tabs) do
+		local col = (tab==i) and "<T>" or gui_btn
+		tabstr = tabstr..string.format("%s<a href='event:leaderboard!%d'>%s</a><br><V>%s<br>",col,i,t,string.rep("&#x2500;", 6))
+	end
+
+	t_str[#t_str+1] = "<ROSE>@"..roundvars.thismap..(mapsets.Mirrored and " (Mirrored)" or "").."<br><V>"..string.rep("&#x2500;", 15).."</p><p align='left'><br>"
+
+	if tab == 1 then
+		if roundvars.cheats and not roomsets.debug then
+			t_str[#t_str+1] = "<p align='center'>Room records are void with cheats. Restart the round without cheats to enable room records.</p>"
+		else
+			local sort = table.copy(roundvars.completes)
+			table.sort(sort, function(a,b) return (a[2] < b[2]) end)
+			for i, t in ipairs(sort) do
+				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
+				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+			end
+		end
+	elseif tab == 2 then
+		local times,cat = FetchTimes(roundvars.thismap)
+		if times then
+			for i, t in ipairs(times[mapsets.Mirrored and 2 or 1]) do
+				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
+				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+			end
+		end
+		t_str[#t_str+1] = "<br><p align='right'><N>Last updated: "..db_updated.."    </p>"
+	end
+	ui.addTextArea(enum.txarea.leaderboardtab, tabstr, pn,170,60,70,nil,gui_bg,gui_b,gui_o,true)
+	ui.addTextArea(enum.txarea.leaderboard, table.concat(t_str), pn,250,50,300,300,gui_bg,gui_b,gui_o,true)
+	players[pn].windows.leaderboard = true
+	players[pn].windows.leaderboardtab = tab
+end
+
+ShowPlayerSets = function(pn)
+	local sets_t = {
+		time_show = tl(pn,"Display the most recent timing on screen","ps_time_show"),
+		cp_particles = tl(pn,"Display fancy particles as checkpoint","ps_cp_particles")
+	}
+	local str = "<p align='center'><font size='15'>"..tl(pn,"Player Settings","player_settings").."</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"
+	for key, desc in pairs(sets_t) do
+		local blt,col = "&#9744;", "<VI>"
+		if players[pn].playersets[key] then
+			blt = "&#9745;"
+			col = "<VP>"
+		end
+		str = str..string.format("%s%s<a href='event:playersets!Toggle&%s'>   %s</a><br>", col, blt, key, desc)
+	end
+	str = str..string.format("<br><N>"..tl(pn,"Localisation","localisation")..": %s<a href='event:lang!Show'>%s</a><br>", gui_btn, players[pn].playersets.lang)
+	ui.addTextArea(enum.txarea.ps,str..string.format("</p><br><p align='center'>%s<a href='event:close!ps'>Close</a></font></p>", gui_btn),pn, 270,55,250,310,gui_bg,gui_b,gui_o,true)
+	players[pn].windows.ps = true
+end
+
+ShowRoomSets = function(pn)
+	ui.addTextArea(enum.txarea.rs,GetRoomSets(pn),pn,270,55,250,310,gui_bg,gui_b,gui_o,true)
+	players[pn].windows.rs = true
+end
+
+GetRoomSets = function(pn)
+	local t_str = {"<p align='center'><font size='15'>Room Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}
+	for _,v in ipairs({'cheats','checkpoint','rev_delay'}) do
+		local blt,col = "&#9744;", "<VI>"
+		if roomsets[v][1] then
+			blt = "&#9745;"
+			col = "<VP>"
+		end
+		t_str[#t_str+1] = string.format("%s<a href='event:roomsets!Toggle&%s'>%s   %s</a><br>", col, v, blt, roomsets[v][2])
+	end
+	t_str[#t_str+1] = '<br>'
+	for _,v in ipairs({"rev_interval"}) do
+		t_str[#t_str+1] = string.format("<N>%s: %s<a href='event:popup!RS&%s'>%s</a><br>", roomsets[v][2], gui_btn, v, roomsets[v][1])
+	end
+	t_str[#t_str+1] = string.format("</p><br><p align='center'>%s<a href='event:roomsets!Reset'>Reset</a>     %s<a href='event:close!rs'>Close</a></p><N>", gui_btn, gui_btn)
+	return table.concat(t_str)
+end
+
+UpdateRoomSets = function()
+	for name in pairs(tfm.get.room.playerList) do ui.updateTextArea(enum.txarea.rs, GetRoomSets(name),name) end
+end
+
+init = function()
+	for _,v in ipairs({'AfkDeath','AutoNewGame','AutoScore','AutoShaman','AutoTimeLeft','PhysicalConsumables'}) do
+		tfm.exec['disable'..v](true)
+	end
+	system.disableChatCommandDisplay(nil,true)
+	for name in pairs(tfm.get.room.playerList) do eventNewPlayer(name) end
+	queued_maptype = 'normal'
+	tfm.exec.newGame('#17')
+end
+
+----- INTERFACES / HANDLERS
 gamemodes = {
 	normal = {
 		event = {
@@ -220,8 +605,6 @@ gamemodes = {
 	}
 }
 gameplay = gamemodes.normal
-
------ INTERFACES / HANDLERS
 
 settings = {
 	commands = {
@@ -515,326 +898,7 @@ settings = {
 	}
 }
 
------ BREAKCORD
-
-function SetCpMark(pn, x, y)
-	if pn == nil then
-		for name,attr in pairs(tfm.get.room.playerList) do
-			SetCpMark(name, x, y)
-		end
-	else
-		if x == nil or y == nil then
-			if cp_coords[pn] then  -- allow re-setting cp with nil coords in case playersets changed
-				x = cp_coords[pn][1]
-				y = cp_coords[pn][2]
-			else
-				return
-			end
-		else
-			cp_coords[pn] = {x, y}
-		end
-		if players[pn].playersets['cp_particles'] then
-			ui.removeTextArea(enum.txarea.cp, pn)
-		else
-			ui.addTextArea(enum.txarea.cp,"", pn, x-1, y-2, 4, 4, 0xfc572d, 0xffffff, .5, false)
-		end
-	end
-end
-
-function RemoveCpMark(pn)
-	if pn == nil then
-		ui.removeTextArea(enum.txarea.cp, nil)
-		cp_coords = {}
-	else
-		ui.removeTextArea(enum.txarea.cp, pn)
-		cp_coords[pn] = nil
-	end
-end
-
-function ReadXML()
-	if roundvars.notvanilla then
-		xml = tfm.get.room.xmlMapInfo.xml
-		local frg,sT = 0, mapsets
-		local first = true
-		for p in xml:gmatch('<P .->') do
-			if first then
-				for attr, val in p:gmatch('(%S+)="(%S*)"') do
-					local a = string.upper(attr)
-					if a == 'G' then
-						sT.Gravity = string.split(val or "")
-						sT.Wind, sT.Gravity = sT.Gravity[1], sT.Gravity[2]
-					elseif a == 'L' then sT.Length = tonumber(val)
-					end
-				end
-				first = false
-			else
-				local array = {}
-				for attr, val in p:gmatch('(%S+)="(%S*)"') do
-					array[string.upper(attr)] = val or ""
-				end
-				if tonumber(array.T)==19 and array.C=='329cd2' then  -- armchair to denote final parkour cp
-					gamemodes.parkour.armchair = {array.X,array.Y}
-					break -- nothing else to check for at the moment
-				end
-			end
-		end
-		sT.Mirrored = tfm.get.room.mirroredMap and true or false
-		if xml:find('<O>(.-)</O>') then
-			for attributes in xml:match('<O>(.-)</O>'):gmatch('<O (.-)/>') do
-				local array = {}
-				for attr, val in attributes:gmatch('(%S+)="(%S*)"') do
-					array[string.upper(attr)] = val or ""
-				end
-				if tonumber(array.C)==22 then
-					cnails[#cnails + 1] = {array.X,array.Y}
-				end
-			end
-		end
-		if xml:find('<S>(.-)</S>') then
-			for attributes in xml:match('<S>(.-)</S>'):gmatch('<S (.-)/>') do
-				local array = {N=false,X=0,Y=0}
-				for attr, val in attributes:gmatch('(%S+)="(%S*)"') do
-					array[string.upper(attr)] = tonumber(val) or val or ""
-					if attr == 'N' then array.N = true end
-				end
-				if sT.Mirrored then 
-					array.X = sT.Length - tonumber(array.X) 
-					if array.P[5] then
-						array.P[5] = tonumber(array.P[5])>180 and array.P[5]-180 or array.P[5]+180
-					end
-				end
-				if array.P then
-					array.P = string.split(array.P or "")
-				else
-					array.P = {0,0,0.2,0.3,0,0,0,0}
-				end
-				grounds[#grounds+1] = array
-			end
-		end
-		if xml:find('<T ') then
-			for t in xml:gmatch('<T(.-)/>') do
-				local a = {}
-				for attr,val in t:gmatch('(%S+)="(%S*)"') do
-					a[string.upper(attr)] = tonumber(val) or ""
-				end
-				table.insert(sT.holes,{a.X,a.Y})
-			end
-		end
-		for name,attr in pairs(tfm.get.room.playerList) do 
-			ShowMapInfo(name)
-		end
-		for i,ground in ipairs(grounds) do
-			grounds.list[i] = {"\tZ: "..(i-1), string.format("\t%s<a href='event:groundinfo!%s'>info</a><N> ", gui_btn, i), string.format("\tType: %s", groundTypes[tonumber(ground.T or 0)] or 'Unknown'), string.format("\tX: %s", ground.X), string.format("\tY: %s", ground.Y)}
-		end
-	end
-end
-
-function MSG(msg, pn, color, sender)
-	--print(str)
-	--tfm.exec.chatMessage(str, pn)
-	if not pn then
-		for name,attr in pairs(tfm.get.room.playerList) do
-			MSG(msg, name, color, sender)
-		end
-	elseif pFind(pn) and players[pn] then
-		if color=='R' then
-			msg = "error: "..msg
-		end
-		local maxlogs,ll,str = 25, players[pn].loglist
-		str = string.format("<%s>Ξ %s%s</font>",color or 'J',sender and '['..sender..'] ' or '',msg)
-		if ll[#ll] and ll[#ll][1]==str then
-			ll[#ll][2] = (ll[#ll][2] or 1) + 1
-		else
-			table.insert(ll, {str})
-			if #ll > maxlogs then
-				table.remove(ll, 1)
-			end
-		end
-		if players[pn].windows.log then
-			ShowLog(pn)
-		end
-	end
-end
-
-function ShowLog(name, page)
-	page = page or 0
-	local props = {
-		-- {x, y, xW, yW}
-		offscreen={-180,300,175,0},
-		onscreen={35,30,500,160}
-	}
-	local type = 'offscreen'
-	local l,offs,text = {}, page*3, "<font size='12' face='Soopafresh,Segoe,Verdana'>"
-	for _,log in ipairs(players[name].loglist) do
-		if log[2] then
-			table.insert(l, log[1].." ("..log[2]..")")
-		else
-			table.insert(l, log[1])
-		end
-	end
-	if #l-offs-4 > 0 then
-		text = text.."<VI><p align='center'><a href='event:log!"..tostring(page+1).."'>&#x25B2;</a></p>"
-	end
-	text = text..table.concat(table.slice(l, #l-offs-3, #l-offs), "<br>")
-	if #l-offs+1 <= #l then
-		text = text.."<br><VI><p align='center'><a href='event:log!"..tostring(page-1).."'>&#x25BC;</a></p>"
-	end
-	text = text.."</font>"
-	ui.addTextArea(enum.txarea.log, text, name,props[type][1],props[type][2],props[type][3],props[type][4],gui_bg,gui_b,gui_o, true)
-	players[name].windows.log = true
-end
-
-function ShowMapInfo( pn )
-	if roundvars.notvanilla then
-		local sT,strT = mapsets
-		strT = {string.format("<ROSE>[Map Info]<J> %s <N>by %s%s<N>",roundvars.thismap, tfm.get.room.xmlMapInfo.author, sT.Mirrored and ' (mirrored)' or ''),
-			string.format("Wind: %s | Gravity: %s",sT.Wind or '0',sT.Gravity or '10')}
-		MSG(table.concat(strT, "\n"),pn,"N")
-	end
-end
-
-function ShowGroundInfo(pn, id)
-	if roundvars.notvanilla then
-		local gT = grounds[tonumber(id)]
-		local info = string.format("<N>Ground Properties</font><br><br>Z: %i <G>|<N> Type: %s <G>|<N> X: %i <G>|<N> Y: %i <G>|<N> Length: %i <G>|<N> Height: %i <G>|<N> Friction: %s <G>|<N> Restitution: %s <G>|<N> Angle: %s<br><N> Disappear: %s <G>|<N>Color: %s <G>|<N> Collision: %s <G>|%s Foreground <G>|%s Dynamic <G>|<N> Mass: %s <G>|%s Fixed Rotation",id-1, groundTypes[tonumber(gT.T or 0)] or 'Unknown', gT.X or 0, gT.Y or 0, gT.L or 0, gT.H or 0, gT.P[3] or '-', gT.P[4] or '-', gT.P[5] or '-', gT.V or 'null', gT.T~=12 and gT.T~=13 and 'null' or gT.O or '-', gT.C==1 and 'all' or gT.C==2 and 'cloud' or gT.C==3 and 'anticloud' or gT.C==4 and 'none' or gT.T==8 and 'cloud' or 'all', gT.N and '<VP>' or '<R>', tonumber(gT.P[1])==1 and '<VP>' or '<R>', gT.P[2] or '-', tonumber(gT.P[6])==1 and '<VP>' or '<R>')
-		MSG(info,pn)
-	else MSG('map type',pn, 'R')
-	end
-end
-
-function ShowHelp(pn, tab)
-	local buttonstr,titles,info = {}
-	for i,v in pairs({'General', 'Admins', 'Maps', 'Credits', 'Close'}) do
-		buttonstr[#buttonstr+1] = "<a href = 'event:help!"..v.."'>"..v.."</a>"
-	end
-	titles = {General="Welcome to Breakcord", Admins="Admin Powers", Maps="Loading Maps", Credits="Credits"}
-
-	info = {General="This is a Work-In-Progress module intended as a #records alternative. If the room name contains your name or your tribe's name, then you will automatically have admin power.<br><br><li>!admins/!banned - lists the admins or banned players</li><li>!help - help</li><li>!log - see the message history (hotkey: `)</li><li>!m - kills yourself</li><li>!mapinfo - lists information about the map</li><br><br><font size='15'>Hotkeys:</font><br><li>press h - help</li><li>press shift+g - see ground list</li><li>hold g - click a ground to see its properties</li><li>press l - see leaderboards and best timings</li><li>press p - see player settings</li><li>press delete - kills youself</li><li>press e - set checkpoint</li><li>press shift+e - remove checkpoint</li>",
-			Admins="<li>!time # - changes the time</li><li>o - see settings (room)</li><br><br><font size='15'>Cheats</font><li>!tp [player]/!tp all - teleports a player or all players where you click</li><li>hold shift - click to teleport</li><br><font size='15'>Room Owners Only:</font><br><li>!admin [player]/!unadmin [player] - gives/takes admin power</li><li>!ban [player] [reason]/!unban [player] - bans/unbans the player (cannot ban room owners)</li>",
-			Maps="<li>!map/!np [code|map type] (mirror) - loads the map code or picks a map of the specified type</li><li>!parkour [code] - loads a map in parkour mode</li><li>!restart - restarts your run during parkour gameplay</li><br><font size='15'>Other:</font><br><li>!map/!np history - list of maps played</li><li>!rst/!rst aie/!rst mirror - reloads the map</li><br><font size='15'>Map types:</font><br><li>wj/walljump - Wall jump practice maps</li><li>cj/cornerjump - Corner jump practice maps</li><li>ta/turnaround - Turnaround practice maps</li><li>v/vanilla - Soloable vanilla maps</li><li>s/shaman - Soloable shaman p4/p8 maps</li>",
-			Credits=string.format("Breakcord is brought to you by the Academy of Building. The GUI is based off the works of Buildtool 2.0.<br><br><font size='15'>Contributors</font><li>Creator: Madguy#7711</li><li>Maintainers of the Transformice World Records database</li><br><font size='15'>Translations</font><li>cn: Casserole#1798</li><li>ph: Rayallan#0000</li><br><font size='15'>Links</font><br>\t• %s<a href='event:print!%s'>Transformice World Records Spreadsheet</a>", gui_btn, "bit.ly/3935H8M")}
-	
-	info = "<p align='center'><font size='15'>"..titles[tab].."</font></p><br>"..info[tab]:gsub('>!(.-)([,:%-])','><font color="#BABD2F">!%1%2</font>')
-	ui.addTextArea(enum.txarea.helptab, gui_btn.."<p align='center'>"..table.concat(buttonstr,'                      '), pn,75,35,650,20,gui_bg,gui_b,gui_o,true)
-	ui.addTextArea(enum.txarea.help, info, pn,75,70,650,nil,gui_bg,gui_b,gui_o,true)
-	players[pn].windows.help = true
-end
-
-function ShowCheats(pn)
-	local f = function(name) ui.addTextArea(enum.txarea.cheats,"<R>"..tl(name,"Cheats enabled","cheats_enabled"), name, 5, 25, 0, 0, gui_bg, gui_b, .7, true) end
-	roundvars.cheats = true
-	if not pn then
-		for name in pairs(tfm.get.room.playerList) do f(name) end
-	else
-		f(pn)
-	end
-end
-
-function ShowMenu(pn, hide)
-	if hide==nil then hide = true end
-	local T = {{enum.txarea.menu_help,"event:help!General","?"},{enum.txarea.menu_player,"event:playersets","P"},{enum.txarea.menu_room,"event:roomsets","O"}}
-	local x, y = 800-(30*(#T+1)), hide and -20 or 25
-	for i,m in ipairs(T) do
-		ui.addTextArea(m[1],"<p align='center'><a href='"..m[2].."'>"..m[3], pn, x+(i*30), y, 20, 0, gui_bg, gui_b, .7, true)
-	end
-end
-
-function ShowLeaderboard(pn, tab)
-	local tabs = {"Room Best", "Global Best", "&#9587; Close"}
-	local tabstr,t_str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>",{"<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"}
-	
-	for i,t in ipairs(tabs) do
-		local col = (tab==i) and "<T>" or gui_btn
-		tabstr = tabstr..string.format("%s<a href='event:leaderboard!%d'>%s</a><br><V>%s<br>",col,i,t,string.rep("&#x2500;", 6))
-	end
-
-	t_str[#t_str+1] = "<ROSE>@"..roundvars.thismap..(mapsets.Mirrored and " (Mirrored)" or "").."<br><V>"..string.rep("&#x2500;", 15).."</p><p align='left'><br>"
-
-	if tab == 1 then
-		if roundvars.cheats and not roomsets.debug then
-			t_str[#t_str+1] = "<p align='center'>Room records are void with cheats. Restart the round without cheats to enable room records.</p>"
-		else
-			local sort = table.copy(roundvars.completes)
-			table.sort(sort, function(a,b) return (a[2] < b[2]) end)
-			for i, t in ipairs(sort) do
-				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
-			end
-		end
-	elseif tab == 2 then
-		local times,cat = FetchTimes(roundvars.thismap)
-		if times then
-			for i, t in ipairs(times[mapsets.Mirrored and 2 or 1]) do
-				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
-			end
-		end
-		t_str[#t_str+1] = "<br><p align='right'><N>Last updated: "..db_updated.."    </p>"
-	end
-	ui.addTextArea(enum.txarea.leaderboardtab, tabstr, pn,170,60,70,nil,gui_bg,gui_b,gui_o,true)
-	ui.addTextArea(enum.txarea.leaderboard, table.concat(t_str), pn,250,50,300,300,gui_bg,gui_b,gui_o,true)
-	players[pn].windows.leaderboard = true
-	players[pn].windows.leaderboardtab = tab
-end
-
-function ShowPlayerSets(pn)
-	local sets_t = {
-		time_show = tl(pn,"Display the most recent timing on screen","ps_time_show"),
-		cp_particles = tl(pn,"Display fancy particles as checkpoint","ps_cp_particles")
-	}
-	local str = "<p align='center'><font size='15'>"..tl(pn,"Player Settings","player_settings").."</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"
-	for key, desc in pairs(sets_t) do
-		local blt,col = "&#9744;", "<VI>"
-		if players[pn].playersets[key] then
-			blt = "&#9745;"
-			col = "<VP>"
-		end
-		str = str..string.format("%s%s<a href='event:playersets!Toggle&%s'>   %s</a><br>", col, blt, key, desc)
-	end
-	str = str..string.format("<br><N>"..tl(pn,"Localisation","localisation")..": %s<a href='event:lang!Show'>%s</a><br>", gui_btn, players[pn].playersets.lang)
-	ui.addTextArea(enum.txarea.ps,str..string.format("</p><br><p align='center'>%s<a href='event:close!ps'>Close</a></font></p>", gui_btn),pn, 270,55,250,310,gui_bg,gui_b,gui_o,true)
-	players[pn].windows.ps = true
-end
-
-function ShowRoomSets(pn)
-	ui.addTextArea(enum.txarea.rs,GetRoomSets(pn),pn,270,55,250,310,gui_bg,gui_b,gui_o,true)
-	players[pn].windows.rs = true
-end
-
-function GetRoomSets(pn)
-	local t_str = {"<p align='center'><font size='15'>Room Settings</font><br><V>"..string.rep("&#x2500;", 15).."</p><br><p align='left'>"}
-	for _,v in ipairs({'cheats','checkpoint','rev_delay'}) do
-		local blt,col = "&#9744;", "<VI>"
-		if roomsets[v][1] then
-			blt = "&#9745;"
-			col = "<VP>"
-		end
-		t_str[#t_str+1] = string.format("%s<a href='event:roomsets!Toggle&%s'>%s   %s</a><br>", col, v, blt, roomsets[v][2])
-	end
-	t_str[#t_str+1] = '<br>'
-	for _,v in ipairs({"rev_interval"}) do
-		t_str[#t_str+1] = string.format("<N>%s: %s<a href='event:popup!RS&%s'>%s</a><br>", roomsets[v][2], gui_btn, v, roomsets[v][1])
-	end
-	t_str[#t_str+1] = string.format("</p><br><p align='center'>%s<a href='event:roomsets!Reset'>Reset</a>     %s<a href='event:close!rs'>Close</a></p><N>", gui_btn, gui_btn)
-	return table.concat(t_str)
-end
-
-function UpdateRoomSets()
-	for name in pairs(tfm.get.room.playerList) do ui.updateTextArea(enum.txarea.rs, GetRoomSets(name),name) end
-end
-
-function init()
-	for _,v in ipairs({'AfkDeath','AutoNewGame','AutoScore','AutoShaman','AutoTimeLeft','PhysicalConsumables'}) do
-		tfm.exec['disable'..v](true)
-	end
-	system.disableChatCommandDisplay(nil,true)
-	for name in pairs(tfm.get.room.playerList) do eventNewPlayer(name) end
-	queued_maptype = 'normal'
-	tfm.exec.newGame('#17')
-end
-
 ----- EVENTS
-
 function eventChatCommand(pn, msg)
 	local m,words = string.lower(msg), {}
 	local mapped = {admin='adminban', ban='adminban', unadmin='adminban', unban='adminban', map='mapnp', np='mapnp', admins='ablist', banned='ablist'}
@@ -1045,73 +1109,10 @@ function eventTextAreaCallback(id, pn, callback)
 	settings.buttons[button or callback](pn, table.unpack(params))
 end
 
------ BREAKCORD UTILITIES
-function ExecuteForTargets(pn, targets, f)
-	if targets=='all' or targets=='*' then
-		for name in pairs(tfm.get.room.playerList) do f(name) end
-	elseif targets=='me' and pn then
-		f(pn)
-	elseif targets then
-		f(targets)
-	end
-end
-
--- returns (times, category) or nil if no map
-function FetchTimes(map)
-	map = tostring(map)
-	for cat,val in pairs(db) do
-		if val[map] then
-			return val[map], cat
-		end
-	end
-end
-
-function pFind(target, pn)
-	local ign = string.lower(target or ' ')
-	for name in pairs(tfm.get.room.playerList) do
-		if string.lower(name):find(ign) then return name end
-	end
-	if pn then MSG('target', pn, 'R') end
-end
-
-function PointGroundOverlap(GT, Gangle, GL, GH, GX, GY, xPos, yPos)
-	local theta,c,s,cx,cy = math.rad(Gangle or 0)
-	c,s = math.cos(-theta), math.sin(-theta)
-	cx,cy = GX+c*(xPos-GX)-s*(yPos-GY), GY+s*(xPos-GX)+c*(yPos-GY)
-	if (GT==13 and pythag(xPos,yPos,GX,GY,GL/2)) or (math.abs(cx-GX)<(GL/2) and math.abs(cy-GY)<(GH/2)) then
-		return true
-	end
-end
-
-function tl(pn, default, key)
-	local lang = players[pn].playersets.lang
-	if translations[lang] and translations[lang][key] then
-		return translations[lang][key]
-	end
-	return default
-end
-
-function ZeroTag(pn, add) --#0000 removed for tag matches
-	if add then
-		if not pn:find('#') then
-			return pn.."#0000"
-		else return pn
-		end
-	else
-		p = pn:find('#0000') and pn:sub(1,-6) or pn
-		return p
-	end
-end
-
 ----- GENERAL UTILITIES
 function math.round(num, numDecimalPlaces)
   local mult = 10^(numDecimalPlaces or 0)
   return math.floor(num * mult + 0.5) / mult
-end
-
-function pythag(x1, y1, x2, y2, r)
-	local x,y,r = x2-x1, y2-y1, r+r
-	return x*x+y*y<r*r
 end
 
 function string.split(str, delimiter)

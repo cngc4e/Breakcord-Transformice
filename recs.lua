@@ -503,11 +503,7 @@ gamemodes = {
 							end
 						end
 						ui.addTextArea(enum.txarea.start_timeshow,"<b><font size='24' face='Soopafresh,Segoe,Verdana' color='#ea00f9'>"..t.."s</font></b>", nil, x, y, 0, 0, 0xffffff, 0x000000, 0, false)
-						for i,v in ipairs(timers) do
-							if v[3]=='timeshow' then table.remove(timers,i) break 
-							end
-						end
-						table.insert(timers,{os.time(),5500,'timeshow',pn})
+						last_times['timeshow'] = os.time()
 					end
 				end
 			end,
@@ -952,15 +948,17 @@ function eventLoop(time, remaining)
 				if v[5] then
 					tfm.exec.movePlayer(v[4], v[5][1], v[5][2])
 				end
-			elseif v[3]=='timeshow' then
-				for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
-					ui.removeTextArea(id, pn)
-				end
 			elseif v[3]=='hidemenu' then
 				ShowMenu(pn, true)
 			end
 			table.remove(timers,i) break 
 		end
+	end
+	if last_times['timeshow'] and os.time() - last_times['timeshow'] >= 5500 then
+		for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
+			ui.removeTextArea(id, pn)
+		end
+		last_times['timeshow'] = nil
 	end
 	if queued_map.shouldWait and os.time() - last_times['loadmap'] > 3000 then
 		last_times['loadmap'] = nil

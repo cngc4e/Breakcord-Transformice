@@ -13,13 +13,13 @@ local mapsets = {}
 local grounds = {}
 local cnails = {}
 local cp_coords = {}
+local last_times = {}
 
 local translations
 local db, db_updated
-local queued_maptype = nil
 
 local roomsets = {debug=false,cheats={false, "Cheats"},checkpoint={false, "Checkpoint"},rev_delay={true, "Revive delay"},rev_interval={1000, "Minimum revive inteval"}}
-
+local queued_map = {code=nil,type=nil,shouldWait=false}
 local groundTypes = {[0]='Wood','Ice','Trampoline','Lava','Chocolate','Earth','Grass','Sand','Cloud','Water','Stone','Snow','Rectangle','Circle','Invisible','Web'}
 
 local gui_btn = "<VI>"
@@ -49,7 +49,7 @@ local enum = {
 }
 
 -- Forward declarations (local)
-local SetCpMark, RemoveCpMark, ReadXML, MSG, ShowLog, ShowMapInfo, ShowGroundInfo, ShowHelp, ShowCheats, ShowMenu, ShowLeaderboard, ShowPlayerSets, ShowRoomSets, GetRoomSets, UpdateRoomSets, init
+local LoadMap, SetCpMark, RemoveCpMark, ReadXML, MSG, ShowLog, ShowMapInfo, ShowGroundInfo, ShowHelp, ShowCheats, ShowMenu, ShowLeaderboard, ShowPlayerSets, ShowRoomSets, GetRoomSets, UpdateRoomSets, init
 local gameplay, gamemodes, settings
 
 ----- BREAKCORD UTILITIES
@@ -116,6 +116,19 @@ local function ZeroTag(pn, add) --#0000 removed for tag matches
 end
 
 ----- BREAKCORD
+LoadMap = function(code, mirror, type)
+	type = type or 'normal'
+	queued_map.code = code
+	queued_map.mirror = mirror
+	queued_map.type = type
+	queued_map.shouldWait = true
+	if not last_times['loadmap'] or os.time() - last_times['loadmap'] > 3000 then
+		queued_map.shouldWait = false
+		last_times['loadmap'] = os.time()
+		tfm.exec.newGame(code, mirror)
+	end
+end
+
 SetCpMark = function(pn, x, y)
 	if pn == nil then
 		for name,attr in pairs(tfm.get.room.playerList) do
@@ -428,8 +441,7 @@ init = function()
 	end
 	system.disableChatCommandDisplay(nil,true)
 	for name in pairs(tfm.get.room.playerList) do eventNewPlayer(name) end
-	queued_maptype = 'normal'
-	tfm.exec.newGame('#17')
+	LoadMap('#17')
 end
 
 ----- INTERFACES / HANDLERS
@@ -638,7 +650,6 @@ settings = {
 						else
 							if w2 then
 								local T, map = {wj='WJ',walljump='WJ',cj='CJ',cornerjump='CJ',ta='TA',turnaround='TA',v='V',vanilla='V',s='S',shaman='S'}, w2
-								queued_maptype = 'normal'
 								if T[w2:lower()] then
 									local codes, n = {}, 0
 									for code in pairs(db[T[w2:lower()]]) do
@@ -647,8 +658,8 @@ settings = {
 									end
 									map = codes[math.random(1, n)]
 								end
-								tfm.exec.newGame(map, w3=='mirror' and true or false)
-							else tfm.exec.newGame('#17')
+								LoadMap(map, w3=='mirror' and true or false)
+							else LoadMap('#17')
 							end
 							return true
 						end
@@ -663,8 +674,7 @@ settings = {
 							end
 							map = codes[math.random(1, n)]
 						end
-						queued_maptype = 'parkour'
-						tfm.exec.newGame(map)
+						LoadMap(map, false, 'parkour')
 					end,
 		restart =	function(pn)
 						if roundvars.maptype=='parkour' then
@@ -676,8 +686,7 @@ settings = {
 						end
 					end,
 		rst =		function(pn, m, w1, w2)
-						queued_maptype = roundvars.maptype
-						tfm.exec.newGame(roundvars.thismap, w2=='mirror')
+						LoadMap(roundvars.thismap, w2=='mirror', roundvars.maptype)
 					end,
 		time =		function(pn, m, w1, w2)
 						tfm.exec.setGameTime(tonumber(w2))
@@ -746,8 +755,7 @@ settings = {
 					end,
 		load =		function(pn, code, type)
 						if admins[pn] then
-							queued_maptype = type or 'normal'
-							tfm.exec.newGame(code)
+							LoadMap(code, false, type)
 						else
 							MSG("[•] @"..code, pn)
 						end
@@ -954,6 +962,10 @@ function eventLoop(time, remaining)
 			table.remove(timers,i) break 
 		end
 	end
+	if queued_map.shouldWait and os.time() - last_times['loadmap'] > 3000 then
+		last_times['loadmap'] = nil
+		LoadMap(queued_map.code, queued_map.mirror, queued_map.type)
+	end
 	for name,attr in pairs(tfm.get.room.playerList) do
 		if players[name].playersets['cp_particles'] and cp_coords[name] then
 			local x, y = cp_coords[name][1], cp_coords[name][2]
@@ -997,7 +1009,7 @@ function eventNewGame()
 		ui.removeTextArea(id, pn)
 	end
 	grounds,cnails = {list={}}, {}
-	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,holes={}}, {maptype=queued_maptype or 'normal',completes={}}
+	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,holes={}}, {maptype=queued_map.type or 'normal',completes={}}
 	roundvars.thismap = tonumber(tfm.get.room.currentMap:match('%d+'))
 	if roundvars.thismap>800 then roundvars.notvanilla = true	end
 	if not roundvars.notvanilla then tfm.get.room.xmlMapInfo = nil end

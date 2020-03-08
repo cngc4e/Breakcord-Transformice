@@ -956,7 +956,7 @@ function eventLoop(time, remaining)
 	end
 	if last_times['timeshow'] and os.time() - last_times['timeshow'] >= 5500 then
 		for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
-			ui.removeTextArea(id, pn)
+			ui.removeTextArea(id, nil)
 		end
 		last_times['timeshow'] = nil
 	end

@@ -1118,7 +1118,11 @@ function eventTextAreaCallback(id, pn, callback)
 		button = callback:match('(%w+)!')
 		params = string.split(callback:match('!(.*)'), '&')
 	end
-	settings.buttons[button or callback](pn, table.unpack(params))
+	-- It is possible for users to send unexpected callbacks to crash the whole module
+	local success, result = pcall(settings.buttons[button or callback], pn, table.unpack(params))
+	if not success then
+		print(string.format("Exception encountered in eventTextAreaCallback (%s): %s", pn, result))
+	end
 end
 
 ----- GENERAL UTILITIES

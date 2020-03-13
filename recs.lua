@@ -14,6 +14,7 @@ local grounds = {}
 local cnails = {}
 local cp_coords = {}
 local last_times = {}
+local schedule_kick = {}  -- TODO: remove for production
 
 local translations
 local db, db_updated
@@ -687,6 +688,15 @@ settings = {
 		time =		function(pn, m, w1, w2)
 						tfm.exec.setGameTime(tonumber(w2))
 					end,
+		kick =		function(pn, m, w1, w2)  -- TODO: remove for production
+						if not roomowners[pn] then MSG('authority', pn, 'R')
+						else
+							local target = pFind(w2,pn)
+							if target then
+								schedule_kick[target] = true
+							end
+						end
+					end,
 		getxml =	function( pn )  -- TODO: remove for production
 						if not admins[pn] then MSG('authority', pn, 'R')
 						elseif tfm.get.room.xmlMapInfo == nil then
@@ -974,6 +984,16 @@ function eventLoop(time, remaining)
 	if gameplay.event['Loop'] then
 		gameplay.event.Loop(pn)
 	end
+	for name, b in pairs(schedule_kick) do -- TODO: remove for production
+		if b then
+			p = tfm.get.room.playerList[name]
+			if p then
+				for i = 1, 100, 1 do
+					tfm.exec.movePlayer(name, p.x, p.y)
+				end
+			end
+		end
+	end
 end
 
 mouse_pos = {} -- TODO: remove for production
@@ -1080,6 +1100,9 @@ function eventPlayerDied(pn)
 end
 
 function eventPlayerLeft(pn)
+	if schedule_kick[pn] then -- TODO: remove for production
+		schedule_kick[pn] = nil
+	end
 	MSG(pn.. " has left the room.", nil, "J")
 end
 

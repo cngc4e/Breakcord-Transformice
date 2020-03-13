@@ -354,6 +354,7 @@ end
 
 ShowLeaderboard = function(pn, tab)
 	local tabs = {"Room Best", "Global Best", "&#9587; Close"}
+	local max_records = 18
 	local tabstr,t_str = "<p align='center'><V>"..string.rep("&#x2500;", 6).."<br>",{"<textformat tabstops='[30,80,230]'><p align='center'><font size='15'>"..tabs[tab].."</font><br>"}
 	
 	for i,t in ipairs(tabs) do
@@ -369,17 +370,18 @@ ShowLeaderboard = function(pn, tab)
 		else
 			local sort = table.copy(roundvars.completes)
 			table.sort(sort, function(a,b) return (a[2] < b[2]) end)
-			for i, t in ipairs(sort) do
+			for i = 1, math.min(#sort, max_records) do
 				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, sort[i][1], sort[i][2])
 			end
 		end
 	elseif tab == 2 then
 		local times,cat = FetchTimes(roundvars.thismap)
 		if times then
-			for i, t in ipairs(times[mapsets.Mirrored and 2 or 1]) do
+			local t = times[mapsets.Mirrored and 2 or 1]
+			for i = 1, math.min(#t, max_records) do
 				local col = i == 1 and "<T>" or i > 3 and "<N>" or "<VP>"
-				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[1], t[2])
+				t_str[#t_str+1] = string.format("%s\t%02d\t%s\t%ss<br>", col, i, t[i][1], t[i][2])
 			end
 		end
 		t_str[#t_str+1] = "<br><p align='right'><N>Last updated: "..db_updated.."    </p>"

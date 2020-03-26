@@ -809,7 +809,7 @@ settings = {
 						end
 						str = str..gui_btn.."\n\n<a href='event:close!book'>Close</a>"
 						local text = "<p align='center'><N><font size='15'>"..book.title.."</font>\n<p align='left'>"..str
-						ui.addTextArea(enum.txarea.book,text,pn,175,50,450,325,gui_bg,gui_b,gui_o,true)
+						ui.addTextArea(enum.txarea.book,text,pn,175,50,450,nil,gui_bg,gui_b,gui_o,true)
 					end,
 		playersets =function(pn, action, set)	
 						if action=='Toggle' then

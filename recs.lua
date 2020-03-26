@@ -619,6 +619,11 @@ gameplay = gamemodes.normal
 
 settings = {
 	commands = {
+		ablist =	function(pn, m, w1) --list the admins or banned players
+						local a,T = {}, {admins=admins,banned=banned}
+						for name in pairs(T[w1]) do a[#a+1] = name end
+						MSG(w1..": "..table.concat(a,", "), pn)
+					end,
 		adminban =	function(pn, m, w1, w2, w3) --admin/unadmin and ban/unban
 						if not roomowners[pn] then MSG('authority', pn, 'R')
 						else

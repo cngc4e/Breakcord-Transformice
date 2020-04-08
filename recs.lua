@@ -1116,6 +1116,13 @@ function eventNewGame()
 	for _, ta in ipairs({'tournament_message','tournament_countdown','tournament_restart_btn','tournament_next_btn'}) do
 		ui.removeTextArea(enum.txarea[ta], nil)
 	end
+	if queued_map.type == 'tournament' then
+		if roundvars.maptype ~= 'tournament' then
+			tfm.exec.disableAfkDeath(false)
+		end
+	elseif roundvars.maptype == 'tournament' then
+		tfm.exec.disableAfkDeath(true)
+	end
 	grounds,cnails = {list={}}, {}
 	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,holes={}}, {maptype=queued_map.type or 'normal',completes={}}
 	roundvars.thismap = tonumber(tfm.get.room.currentMap:match('%d+'))

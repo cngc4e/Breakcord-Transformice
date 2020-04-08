@@ -43,6 +43,10 @@ local enum = {
 		menu_help = 20,
 		menu_player = 21,
 		menu_room = 22,
+		tournament_message = 30,
+		tournament_countdown = 31,
+		tournament_restart_btn = 32,
+		tournament_next_btn = 33,
 		start_timeshow = 100,
 		end_timeshow = 108,
 		log = 1000,
@@ -613,6 +617,63 @@ gamemodes = {
 		timestart = {},
 		completed = {},
 		armchair = nil,
+	},
+	tournament = {
+		event = {
+			Loop = function(time, remaining)
+				if remaining<=0 then
+					if roundvars['roundcompleted'] then
+						if gameplay.restart then
+							LoadMap(roundvars.thismap, false, 'tournament')
+						else
+							LoadMap(gameplay.maps[math.random(#gameplay.maps)], false, 'tournament')
+						end
+					else
+						gameplay.RoundLost()
+					end
+				else
+					if roundvars['roundcompleted'] then
+						ui.addTextArea(enum.txarea.tournament_countdown,"<p align='center'><font size='32'><VI>"..math.round(remaining/1000,0), nil, 370, 245, 50, nil,gui_bg,gui_b,gui_o,true)
+					end
+				end
+			end,
+			NewGame = function()
+				gameplay.restart = false
+			end,
+			PlayerDied = function(pn)
+				local all_players_dead = true
+				for name,attr in pairs(tfm.get.room.playerList) do
+					if not attr.isDead then
+						all_players_dead = false
+					end
+				end
+				if all_players_dead then
+					gameplay.RoundLost()
+				end
+			end,
+			PlayerWon = function(pn, elapsed)
+				if not roundvars['roundcompleted'] then
+					roundvars['roundcompleted'] = true
+					tfm.exec.setGameTime(15)
+					tfm.exec.setPlayerScore(pn, 1, true)
+					local t = elapsed/100
+					table.insert(roundvars.completes, {ZeroTag(pn), t})
+					ui.addTextArea(enum.txarea.tournament_message,string.format("<p align='center'><font size='24'><J>%s\nwon in %ss!\n<font size='13'><N>The next round will commence in...", pn, t), nil, 260, 140, 280, 90,gui_bg,gui_b,gui_o,true)
+					ui.addTextArea(enum.txarea.tournament_restart_btn,string.format("<a href='event:tournament!rst'>Restart", pn, t), nil, 300, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
+					ui.addTextArea(enum.txarea.tournament_next_btn,string.format("<a href='event:tournament!next'>Next", pn, t), nil, 460, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
+				end
+			end,
+		},
+		keys = {},
+		RoundLost = function()
+			roundvars['roundcompleted'] = true
+			tfm.exec.setGameTime(15)
+			ui.addTextArea(enum.txarea.tournament_message,string.format("<p align='center'><font size='24'><J>No one won!\n<font size='13'><N>The next round will commence in...", t), nil, 260, 185, 280, nil,gui_bg,gui_b,gui_o,true)
+			ui.addTextArea(enum.txarea.tournament_restart_btn,string.format("<a href='event:tournament!rst'>Restart", pn, t), nil, 300, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
+			ui.addTextArea(enum.txarea.tournament_next_btn,string.format("<a href='event:tournament!next'>Next", pn, t), nil, 460, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
+		end,
+		maps = nil,
+		restart = false,
 	}
 }
 gameplay = gamemodes.normal
@@ -688,6 +749,15 @@ settings = {
 							tfm.exec.killPlayer(pn)
 							gameplay.event.NewPlayer(pn)
 						end
+					end,
+		tournament =function(pn, m, w1, w2)
+						local s = "2,11,12,19,22,24,40,44,45,53,62,67,69,71,73,74,75,79,80,85,86,119,123,127,138,142,145,150,7470754,7470763,7470774,7470782,7470797,7697587"
+						local maps = string.split(s, ',')
+						gamemodes.tournament.maps = maps
+						for name,attr in pairs(tfm.get.room.playerList) do
+							tfm.exec.setPlayerScore(name, 0)
+						end
+						LoadMap(maps[math.random(#maps)], false, 'tournament')
 					end,
 		rst =		function(pn, m, w1, w2)
 						LoadMap(roundvars.thismap, w2=='mirror', roundvars.maptype)
@@ -855,7 +925,17 @@ settings = {
 							end
 							UpdateRoomSets(pn)
 						end
-					end,	
+					end,
+		tournament =function(pn, action)
+						if admins[pn] then
+							if action=='rst' then
+								gamemodes.tournament.restart = true
+								tfm.exec.setGameTime(3)
+							elseif action=='next' then
+								tfm.exec.setGameTime(3)
+							end
+						end
+					end,
 	},
 	keys = {
 		[16] =	function(pn, enable)  -- shift
@@ -989,7 +1069,7 @@ function eventLoop(time, remaining)
 		end
 	end
 	if gameplay.event['Loop'] then
-		gameplay.event.Loop(pn)
+		gameplay.event.Loop(pn, remaining)
 	end
 	for name, b in pairs(schedule_kick) do -- TODO: remove for production
 		if b then
@@ -1031,7 +1111,10 @@ end
 
 function eventNewGame()
 	for id=enum.txarea.start_timeshow,enum.txarea.end_timeshow do
-		ui.removeTextArea(id, pn)
+		ui.removeTextArea(id, nil)
+	end
+	for _, ta in ipairs({'tournament_message','tournament_countdown','tournament_restart_btn','tournament_next_btn'}) do
+		ui.removeTextArea(enum.txarea[ta], nil)
 	end
 	grounds,cnails = {list={}}, {}
 	mapsets,roundvars = {Wind=0,Gravity=10,MGOC=100,Length=800,holes={}}, {maptype=queued_map.type or 'normal',completes={}}

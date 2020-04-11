@@ -621,59 +621,63 @@ gamemodes = {
 	tournament = {
 		event = {
 			Loop = function(time, remaining)
-				if remaining<=0 then
-					if roundvars['roundcompleted'] then
+				if roundvars['roundcompleted'] then
+					if gameplay.timeNext - os.time() <= 0 then
 						if gameplay.restart then
 							LoadMap(roundvars.thismap, false, 'tournament')
 						else
 							LoadMap(gameplay.maps[math.random(#gameplay.maps)], false, 'tournament')
 						end
 					else
-						gameplay.RoundLost()
+						-- update the timer
+						ui.addTextArea(enum.txarea.tournament_countdown,"<p align='center'><font size='32'><VI>"..math.round((gameplay.timeNext-os.time())/1000,0), nil, 370, 245, 50, nil,gui_bg,gui_b,gui_o,true)
 					end
-				else
-					if roundvars['roundcompleted'] then
-						ui.addTextArea(enum.txarea.tournament_countdown,"<p align='center'><font size='32'><VI>"..math.round(remaining/1000,0), nil, 370, 245, 50, nil,gui_bg,gui_b,gui_o,true)
-					end
+				elseif remaining <= 0  then
+					-- time's up
+					gameplay.onRoundCompleted(false)
 				end
 			end,
 			NewGame = function()
 				gameplay.restart = false
 			end,
 			PlayerDied = function(pn)
-				local all_players_dead = true
-				for name,attr in pairs(tfm.get.room.playerList) do
-					if not attr.isDead then
-						all_players_dead = false
+				if not roundvars['roundcompleted'] then
+					local all_players_dead = true
+					for name,attr in pairs(tfm.get.room.playerList) do
+						if not attr.isDead then
+							all_players_dead = false
+							break
+						end
 					end
-				end
-				if all_players_dead then
-					gameplay.RoundLost()
+					if all_players_dead then
+						gameplay.onRoundCompleted(false)
+					end
 				end
 			end,
 			PlayerWon = function(pn, elapsed)
 				if not roundvars['roundcompleted'] then
-					roundvars['roundcompleted'] = true
-					tfm.exec.setGameTime(15)
 					tfm.exec.setPlayerScore(pn, 1, true)
 					local t = elapsed/100
 					table.insert(roundvars.completes, {ZeroTag(pn), t})
-					ui.addTextArea(enum.txarea.tournament_message,string.format("<p align='center'><font size='24'><J>%s\nwon in %ss!\n<font size='13'><N>The next round will commence in...", pn, t), nil, 260, 140, 280, 90,gui_bg,gui_b,gui_o,true)
-					ui.addTextArea(enum.txarea.tournament_restart_btn,string.format("<a href='event:tournament!rst'>Restart", pn, t), nil, 300, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
-					ui.addTextArea(enum.txarea.tournament_next_btn,string.format("<a href='event:tournament!next'>Next", pn, t), nil, 460, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
+					gameplay.onRoundCompleted(true, pn, t)
 				end
 			end,
 		},
 		keys = {},
-		RoundLost = function()
-			roundvars['roundcompleted'] = true
-			tfm.exec.setGameTime(15)
-			ui.addTextArea(enum.txarea.tournament_message,string.format("<p align='center'><font size='24'><J>No one won!\n<font size='13'><N>The next round will commence in...", t), nil, 260, 185, 280, nil,gui_bg,gui_b,gui_o,true)
+		onRoundCompleted = function(won, wonPn, wonTime)
+			if won then
+				ui.addTextArea(enum.txarea.tournament_message,string.format("<p align='center'><font size='24'><J>%s\nwon in %ss!\n<font size='13'><N>The next round will commence in...", wonPn, wonTime), nil, 260, 140, 280, 90,gui_bg,gui_b,gui_o,true)
+			else
+				ui.addTextArea(enum.txarea.tournament_message,string.format("<p align='center'><font size='24'><J>No one won!\n<font size='13'><N>The next round will commence in...", t), nil, 260, 185, 280, nil,gui_bg,gui_b,gui_o,true)
+			end
 			ui.addTextArea(enum.txarea.tournament_restart_btn,string.format("<a href='event:tournament!rst'>Restart", pn, t), nil, 300, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
 			ui.addTextArea(enum.txarea.tournament_next_btn,string.format("<a href='event:tournament!next'>Next", pn, t), nil, 460, 245, nil, nil,c_gui_bg,c_gui_b,.9,true)
+			gameplay.timeNext = os.time() + 15000
+			roundvars['roundcompleted'] = true
 		end,
 		maps = nil,
 		restart = false,
+		timeNext = nil,
 	}
 }
 gameplay = gamemodes.normal
@@ -930,9 +934,9 @@ settings = {
 						if admins[pn] then
 							if action=='rst' then
 								gamemodes.tournament.restart = true
-								tfm.exec.setGameTime(3)
+								gamemodes.tournament.timeNext = os.time() + 3000
 							elseif action=='next' then
-								tfm.exec.setGameTime(3)
+								gamemodes.tournament.timeNext = os.time() + 3000
 							end
 						end
 					end,
